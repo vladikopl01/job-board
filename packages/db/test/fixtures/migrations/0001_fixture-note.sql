@@ -1,0 +1,1 @@
+ALTER TABLE `fixture_parents` ADD `note` text;

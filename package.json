@@ -1,0 +1,30 @@
+{
+  "name": "job-board",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm --filter @job-board/web dev",
+    "build": "pnpm --filter @job-board/web build",
+    "start": "pnpm --filter @job-board/web start",
+    "db:generate": "pnpm --filter @job-board/db generate",
+    "db:migrate": "pnpm --filter @job-board/db migrate",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint --deny-warnings .",
+    "typecheck": "pnpm --filter @job-board/web typegen && pnpm --recursive typecheck && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "vitest": "5.0.5"
+  },
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
+  "packageManager": "pnpm@10.28.0"
+}

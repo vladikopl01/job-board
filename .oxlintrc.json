@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "oxc", "react", "nextjs", "jsx-a11y", "vitest"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "jsx-a11y/alt-text": "error",
+    "jsx-a11y/anchor-has-content": "error",
+    "jsx-a11y/label-has-associated-control": "error",
+    "vitest/no-focused-tests": "error",
+    "vitest/no-disabled-tests": "error"
+  },
+  "settings": {
+    "next": { "rootDir": "apps/web/" }
+  },
+  "ignorePatterns": [
+    ".agents/**",
+    ".codex/**",
+    "openspec/**",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/next-env.d.ts",
+    "**/.data/**",
+    "**/coverage/**",
+    "packages/db/test/fixtures/migrations/**"
+  ]
+}

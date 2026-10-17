@@ -1,0 +1,61 @@
+name: Workspace checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - uses: pnpm/action-setup@v6
+        with:
+          run_install: false
+          cache: true
+
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type-check without a prior build or database
+        run: pnpm typecheck
+
+      - name: Test components and native SQLite migrations
+        run: pnpm test
+
+      - name: Initialize temporary database
+        run: pnpm db:migrate
+        env:
+          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-foundation
+
+      - name: Replay database setup
+        run: pnpm db:migrate
+        env:
+          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-foundation
+
+      - name: Build application
+        run: pnpm build

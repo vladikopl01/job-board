@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "ignorePatterns": [
+    ".agents/**",
+    ".codex/**",
+    "openspec/**",
+    "**/node_modules/**",
+    "**/.next/**",
+    "**/next-env.d.ts",
+    "**/*.tsbuildinfo",
+    "**/.data/**",
+    "**/coverage/**",
+    "pnpm-lock.yaml",
+    "packages/db/drizzle/meta/**",
+    "packages/db/test/fixtures/migrations/**"
+  ]
+}

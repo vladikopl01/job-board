@@ -1,0 +1,48 @@
+schema: spec-driven
+
+context: |
+  This project is a personal, open-source, local-first job-board tracker.
+  The workspace foundation is implemented in apps/web and packages/db.
+  Product features remain planned; no company boards or job data are implemented yet.
+  Canonical planning documents: openspec/tech-stack.md, openspec/architecture.md,
+  and openspec/roadmap.md. They distinguish the implemented foundation from the target.
+  Use pnpm workspaces with apps/web and focused packages. Node.js 24 LTS is the runtime.
+  Frontend: Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4,
+  shadcn/ui with Base UI, Lucide, TanStack Query 5, TanStack Form, Zod 4, and nuqs.
+  Turbopack builds the app. Vite supports Vitest, not a second application build.
+  Next.js Route Handlers and shared Zod schemas form the local API.
+  SQLite with better-sqlite3, Drizzle ORM, and Drizzle Kit stores application data.
+  Prefer Drizzle for schema, queries, and transactions; raw SQL is an exception
+  only for unsupported SQL. Start search with Drizzle like(); defer SQLite FTS5.
+  Run persisted background tasks inside the Next.js Node server; no separate worker.
+  Start with Ashby and Lever adapters behind a shared normalized posting contract.
+  Index all jobs, filter locally, and reconcile absences only after a complete,
+  successful refresh. Internal posting UUIDs are separate from provider IDs.
+  Reappearance after an observed absence creates a new internal posting.
+  Persist unread state; actual detail visits mark read, with manual and bulk overrides.
+  Local Codex integration uses AI SDK Core and our own in-repository provider.
+  Evaluate the official Codex SDK as its execution layer; do not use the rejected
+  community Codex provider or require hosted sandbox/gateway infrastructure.
+  AI is optional for core tracking. Categorization is batched; geography is deterministic.
+  Generate per-posting PDF, Markdown/text, answers, and ZIP packages using
+  @react-pdf/renderer and fflate. Preserve submitted versions and exact redownloads.
+  Quality: Oxfmt, Oxlint, tsc --noEmit, Vitest, React Testing Library,
+  temporary SQLite integration tests, and GitHub Actions on macOS, Linux, and Windows.
+  Prefer simple, typed solutions. No external database, account system, separate
+  worker, DOCX support, or automatic employer submission in the initial scope.
+  Feature implementation requires separate, focused OpenSpec changes.
+
+rules:
+  proposal:
+    - Distinguish documentation of the target design from implementation of a feature.
+    - Keep later explorations separate from accepted implementation scope.
+  design:
+    - Follow the canonical stack and architecture unless the change explicitly revises them.
+    - Record technical verification items without presenting them as completed checks.
+    - Use named, unnumbered roadmap themes instead of numbered stages or phases.
+  specs:
+    - Describe observable behavior and failure cases rather than implementation details.
+    - Preserve local data and history when provider refreshes or AI tasks fail.
+  tasks:
+    - Use unnumbered thematic headings and focused checkbox tasks.
+    - Include only work authorized by the change; do not expand a documentation change into app implementation.
