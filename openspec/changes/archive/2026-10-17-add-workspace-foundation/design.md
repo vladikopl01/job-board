@@ -1,6 +1,6 @@
 ## Context
 
-The repository contains an agreed [stack](../../tech-stack.md), [architecture](../../architecture.md), and [roadmap](../../roadmap.md), but no application code or dependency manifests. See [proposal.md](proposal.md) for motivation and scope. This is the first implementation proposal; creating it does not execute its tasks.
+The repository contains an agreed [stack](../../../tech-stack.md), [architecture](../../../architecture.md), and [roadmap](../../../roadmap.md), but no application code or dependency manifests. See [proposal.md](proposal.md) for motivation and scope. This is the first implementation proposal; creating it does not execute its tasks.
 
 The application runs as a persistent local Node.js server on macOS, Linux, and Windows. There is no existing database schema or deployed data to migrate.
 

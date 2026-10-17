@@ -31,4 +31,4 @@ None. There are no implemented capability specs yet; the existing planning basel
 - Creates a local SQLite file and its sidecar files only through explicit database setup or runtime database access. Source, builds, formatting, type checking, and ordinary tests must not mutate the user's database.
 - Requires validating better-sqlite3 installation and migration execution on all supported systems before claiming the foundation ready. No external database, agent credentials, separate worker, or build orchestrator is required.
 
-See the agreed [stack](../../tech-stack.md), [architecture](../../architecture.md), and [workspace foundation roadmap](../../roadmap.md#workspace-foundation).
+See the agreed [stack](../../../tech-stack.md), [architecture](../../../architecture.md), and [workspace foundation roadmap](../../../roadmap.md#workspace-foundation).
