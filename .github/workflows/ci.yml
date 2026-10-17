@@ -15,7 +15,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        # pnpm 10.28's node-gyp needs the Visual Studio 2022 toolchain.
+        os: [ubuntu-latest, macos-latest, windows-2022]
     env:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:

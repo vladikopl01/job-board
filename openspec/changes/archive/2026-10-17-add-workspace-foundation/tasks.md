@@ -46,3 +46,5 @@ Completed on macOS arm64 with Node.js 24.19.0 and pnpm 10.28.0 on 2026-10-17:
 The build immediately following the intentionally failing client-import probe encountered a Turbopack cache panic. Clean server-probe and final application builds passed after removing the generated output.
 
 Not run: browser/visual verification, live development/start sessions, or the GitHub Actions matrix. Narrow-screen layout and focus styles were reviewed in source; the retry interaction was tested in jsdom. Linux and Windows behavior, and clean hosted macOS installation, remain unverified until the three CI jobs pass. No development server was left running and no default or user database was accessed.
+
+Publishing follow-up: the [first hosted CI run](https://github.com/vladikopl01/job-board/actions/runs/39034122105) passed on Linux and macOS. Windows failed before application checks because pnpm 10.28.0's bundled node-gyp 11.5 could not detect Visual Studio 2026 on `windows-latest`. The matrix now uses `windows-2022` with Visual Studio 2022; its complete checks must pass before Windows support is confirmed.

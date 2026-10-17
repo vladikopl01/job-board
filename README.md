@@ -80,7 +80,7 @@ Tests use real native SQLite connections in unique temporary directories, close 
 
 Use the pinned Node and pnpm versions before installing. The repository allows install scripts only for better-sqlite3, esbuild, and sharp. Do not enable all dependency scripts globally.
 
-better-sqlite3 uses a prebuilt binary where available and otherwise builds locally. A source build needs Python and a C++ toolchain: Xcode Command Line Tools on macOS, compiler/make tools on Linux, or Visual Studio Build Tools with C++ support on Windows. See [node-gyp's platform prerequisites](https://github.com/nodejs/node-gyp#installation).
+better-sqlite3 uses a prebuilt binary where available and otherwise builds locally. A source build needs Python and a C++ toolchain: Xcode Command Line Tools on macOS, compiler/make tools on Linux, or Visual Studio **2022** Build Tools with C++ support on Windows. The pinned pnpm bundles node-gyp 11.5, which cannot detect Visual Studio 2026; Windows CI therefore uses `windows-2022`. See [node-gyp's platform prerequisites](https://github.com/nodejs/node-gyp#installation) and [version history](https://github.com/nodejs/node-gyp/blob/main/CHANGELOG.md).
 
 After changing Node versions, reinstall/rebuild the native dependency with the selected runtime (`pnpm rebuild better-sqlite3`). Cache permission errors concern the package manager/native build cache; choose a writable cache or fix its permissions, rather than changing the application's data path or deleting its database.
 
