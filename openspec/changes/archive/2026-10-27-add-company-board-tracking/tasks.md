@@ -49,3 +49,7 @@ Local verification on 2026-10-27 after the name-suggestion and UI refinements:
 - All 116 current tests pass with `pnpm exec vitest run --maxWorkers=2 --testTimeout=15000`; workspace and root TypeScript checks pass without running Next type generation or a build against the existing dev output.
 - The implemented capability specs are synced, including the subsequent board-management refinements. Their completed changes are archived separately.
 - Cross-platform CI execution remains the only unchecked task. The configured jobs need a pushed commit before Linux and Windows results can be recorded.
+
+## Archive record
+
+Archived on 2026-10-27 at the user's request. Cross-platform CI verification remains unchecked; archiving does not claim those jobs have passed.

@@ -21,7 +21,7 @@ Ready when a fresh clone can install, create its local database, run, and pass t
 
 ## Company board tracking
 
-Implementation is present in the [company-board tracking change](changes/add-company-board-tracking/tasks.md): local registration, renaming, duplicate handling, active/archived views, and reversible archive/restore. The source-identification package is in use; complete feed snapshots remain part of indexed openings. Cross-platform checks for this feature remain pending until the expanded CI matrix runs.
+Implementation is present in the [company-board tracking change](changes/archive/2026-10-27-add-company-board-tracking/tasks.md): local registration, renaming, duplicate handling, active/archived views, and reversible archive/restore. The source-identification package is in use; complete feed snapshots remain part of indexed openings. Cross-platform checks for this feature remain pending until the expanded CI matrix runs.
 
 The [board-name suggestions change](changes/archive/2026-10-27-add-board-name-suggestions/tasks.md) adds URL-first entry with name placeholders from optional page metadata and an immediate offline slug fallback. Users can enter an override or leave the name blank to save the suggestion. Supplemental help opens through info buttons. Saving remains independent of lookup completion.
 

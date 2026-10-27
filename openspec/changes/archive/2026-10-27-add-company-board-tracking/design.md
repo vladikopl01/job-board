@@ -2,7 +2,7 @@
 
 See [proposal.md](proposal.md) for motivation. The foundation provides `apps/web`, source-exported `@job-board/db`, a lazy server-only connection, and explicit Drizzle migration commands. The product schema is empty. The app has an empty home page, and Vitest currently discovers database tests and app component tests only.
 
-The accepted [architecture](../../architecture.md#company-boards-and-provider-adapters) separates source-specific parsing from application workflows and persistence. This change introduces source identification; the complete-snapshot adapter contract and normalized posting format belong to the indexed-openings change.
+The accepted [architecture](../../../architecture.md#company-boards-and-provider-adapters) separates source-specific parsing from application workflows and persistence. This change introduces source identification; the complete-snapshot adapter contract and normalized posting format belong to the indexed-openings change.
 
 ## Goals / Non-Goals
 

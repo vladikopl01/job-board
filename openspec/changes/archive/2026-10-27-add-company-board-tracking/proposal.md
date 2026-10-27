@@ -31,4 +31,4 @@ Registration validates the URL format without contacting the employer or claimin
 - Workspace manifests, lockfile, test discovery, and README: Include the new package and dependencies, describe supported inputs and archival semantics, and keep all three CI jobs checking the expanded workspace.
 - No external database, credentials, live provider dependency, account system, destructive deletion endpoint, or background worker is introduced.
 
-See the agreed [stack](../../tech-stack.md), [architecture](../../architecture.md#company-boards-and-provider-adapters), and [company board tracking roadmap](../../roadmap.md#company-board-tracking).
+See the agreed [stack](../../../tech-stack.md), [architecture](../../../architecture.md#company-boards-and-provider-adapters), and [company board tracking roadmap](../../../roadmap.md#company-board-tracking).
