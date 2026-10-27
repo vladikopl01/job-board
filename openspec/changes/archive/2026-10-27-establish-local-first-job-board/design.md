@@ -2,7 +2,7 @@
 
 See [proposal.md](proposal.md) for the motivation and documentation-only scope. The repository has an OpenSpec scaffold but no application code, package manifest, database, or shipped capabilities. Discovery established the target product behavior and stack; the latest decision is a pnpm monorepo with our own Codex provider package.
 
-The canonical target documents are [the stack](../../tech-stack.md), [the architecture](../../architecture.md), and [the roadmap](../../roadmap.md). This artifact explains how that baseline is captured and maintained; it does not authorize implementation of the described application.
+The canonical target documents are [the stack](../../../tech-stack.md), [the architecture](../../../architecture.md), and [the roadmap](../../../roadmap.md). This artifact explains how that baseline is captured and maintained; it does not authorize implementation of the described application.
 
 ## Goals / Non-Goals
 

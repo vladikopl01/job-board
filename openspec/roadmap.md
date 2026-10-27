@@ -1,6 +1,6 @@
 # Product roadmap
 
-Status: agreed direction as of 2026-10-17. The workspace foundation is implemented; product features remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
+Status: agreed direction, updated 2026-10-27. Workspace foundations and company board management are implemented; indexing and later themes remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
 
 The [stack](tech-stack.md) and [architecture](architecture.md) define the current baseline. Each theme should be delivered through focused OpenSpec feature changes with behavior specs, design where needed, and implementation tasks. Completing this documentation does not complete any product theme below.
 
@@ -20,6 +20,12 @@ Establish the pnpm workspace repository, Node.js runtime, and Next.js applicatio
 Ready when a fresh clone can install, create its local database, run, and pass the defined checks on all supported systems. No AI account is required to reach this point.
 
 ## Company board tracking
+
+Implementation is present in the [company-board tracking change](changes/add-company-board-tracking/tasks.md): local registration, renaming, duplicate handling, active/archived views, and reversible archive/restore. The source-identification package is in use; complete feed snapshots remain part of indexed openings. Cross-platform checks for this feature remain pending until the expanded CI matrix runs.
+
+The [board-name suggestions change](changes/archive/2026-10-27-add-board-name-suggestions/tasks.md) adds URL-first entry with name placeholders from optional page metadata and an immediate offline slug fallback. Users can enter an override or leave the name blank to save the suggestion. Supplemental help opens through info buttons. Saving remains independent of lookup completion.
+
+The [board-management UI change](changes/archive/2026-10-27-refine-board-management-ui/tasks.md) moves creation into a New board dialog, identifies the page through selected Boards navigation and a shared tabs/action toolbar, adds provider badges and action icons, matches empty-state and ordinary-card minimum heights, edits active titles inline without shifting the card, and limits archived actions to restoration.
 
 Let the user build and manage the tracking list.
 

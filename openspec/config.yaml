@@ -2,13 +2,18 @@ schema: spec-driven
 
 context: |
   This project is a personal, open-source, local-first job-board tracker.
-  The workspace foundation is implemented in apps/web and packages/db.
-  Product features remain planned; no company boards or job data are implemented yet.
+  Workspace foundations and company board management are implemented in apps/web,
+  packages/db, and packages/job-boards. Boards support local Ashby/Lever source
+  registration with metadata/slug name placeholders and optional overrides, renaming, and
+  reversible archival; job indexing remains planned.
   Canonical planning documents: openspec/tech-stack.md, openspec/architecture.md,
-  and openspec/roadmap.md. They distinguish the implemented foundation from the target.
+  and openspec/roadmap.md. They distinguish implemented features from the target.
   Use pnpm workspaces with apps/web and focused packages. Node.js 24 LTS is the runtime.
   Frontend: Next.js 16 App Router, React 19, strict TypeScript, Tailwind CSS 4,
   shadcn/ui with Base UI, Lucide, TanStack Query 5, TanStack Form, Zod 4, and nuqs.
+  Install and reinstall shadcn primitives only through the CLI using base-nova;
+  review diffs and generated output. Load tw-animate-css and shadcn/tailwind.css,
+  complete semantic theme tokens, and honor reduced-motion preferences.
   Turbopack builds the app. Vite supports Vitest, not a second application build.
   Next.js Route Handlers and shared Zod schemas form the local API.
   SQLite with better-sqlite3, Drizzle ORM, and Drizzle Kit stores application data.

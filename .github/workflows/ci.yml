@@ -45,18 +45,18 @@ jobs:
       - name: Type-check without a prior build or database
         run: pnpm typecheck
 
-      - name: Test components and native SQLite migrations
+      - name: Test providers, routes, components, and native SQLite migrations
         run: pnpm test
 
       - name: Initialize temporary database
         run: pnpm db:migrate
         env:
-          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-foundation
+          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-checks
 
       - name: Replay database setup
         run: pnpm db:migrate
         env:
-          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-foundation
+          JOB_BOARD_DATA_DIR: ${{ runner.temp }}/job-board-checks
 
       - name: Build application
         run: pnpm build

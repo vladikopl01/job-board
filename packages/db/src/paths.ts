@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 export function findWorkspaceRoot(startDirectory = process.cwd()): string {
-  let directory = resolve(startDirectory);
+  // Discover the running checkout; these local files are not application bundle assets.
+  let directory = resolve(/* turbopackIgnore: true */ startDirectory);
 
   while (!existsSync(join(directory, "pnpm-workspace.yaml"))) {
     const parent = dirname(directory);

@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import type { ReactNode } from "react";
+
+import { AppNav } from "@/components/app-nav";
+import { QueryProvider } from "@/components/query-provider";
 
 import "./globals.css";
 
@@ -18,18 +22,23 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <header className="border-b px-5 py-5 sm:px-8">
-          <div className="mx-auto flex max-w-5xl items-center gap-3">
-            <span className="font-semibold tracking-tight">Job board</span>
-            <span className="text-sm text-muted-foreground">Local workspace</span>
+        <header className="border-b">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-4 px-5 py-3 sm:px-8">
+            <Link
+              href="/"
+              className="rounded-sm font-semibold tracking-tight outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
+            >
+              Job board
+            </Link>
+            <AppNav />
           </div>
         </header>
         <main
           id="main-content"
           tabIndex={-1}
-          className="mx-auto max-w-5xl px-5 py-12 sm:px-8 sm:py-20"
+          className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-10"
         >
-          {children}
+          <QueryProvider>{children}</QueryProvider>
         </main>
       </body>
     </html>

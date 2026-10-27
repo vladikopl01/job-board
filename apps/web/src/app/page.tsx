@@ -1,5 +1,7 @@
 import { BriefcaseBusinessIcon } from "lucide-react";
+import Link from "next/link";
 
+import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 
 export default function WorkspacePage() {
@@ -21,11 +23,15 @@ export default function WorkspacePage() {
           <EmptyMedia variant="icon">
             <BriefcaseBusinessIcon aria-hidden="true" />
           </EmptyMedia>
-          <h2 className="text-base font-medium">Your workspace is ready</h2>
+          <h2 className="text-base font-medium">Build your company list</h2>
           <EmptyDescription>
-            Company boards and job tracking are coming next. There are no jobs to browse yet.
+            Save Ashby and Lever company boards locally, then keep your sources organized as your
+            search develops.
           </EmptyDescription>
         </EmptyHeader>
+        <Button render={<Link href="/boards" />} nativeButton={false}>
+          Manage boards
+        </Button>
       </Empty>
     </div>
   );

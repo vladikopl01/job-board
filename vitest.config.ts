@@ -12,7 +12,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["packages/db/**/*.test.ts", "apps/web/**/*.test.tsx"],
+    include: ["packages/**/*.test.ts", "apps/web/**/*.test.{ts,tsx}"],
     restoreMocks: true,
   },
 });

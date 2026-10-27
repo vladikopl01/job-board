@@ -1,6 +1,6 @@
 # Local-first architecture
 
-Status: agreed target as of 2026-10-17. The workspace foundation is implemented in `apps/web` and `packages/db`; the product workflows below remain planned. See the [technology stack](tech-stack.md) for libraries and the [roadmap](roadmap.md) for delivery themes.
+Status: agreed target, updated 2026-10-27. Workspace foundations and company board management are implemented in `apps/web`, `packages/db`, and `packages/job-boards`. Indexing and subsequent product workflows below remain planned. See the [technology stack](tech-stack.md) for libraries and the [roadmap](roadmap.md) for delivery themes.
 
 ## Product boundary
 
@@ -54,6 +54,8 @@ TanStack Query reads the local API and invalidates affected results after mutati
 
 nuqs owns shareable discovery state such as query text, filters, sorting, and pagination. React state owns transient panels and selections. Profile content and application answers must not be stored in URL parameters. Ordinary server reads and route prefetches must not trigger refreshes or mark jobs read.
 
+The web app owns CLI-installed shadcn primitives under `src/components/ui`, using Base UI and the `base-nova` preset. Product components compose them. Global CSS imports Tailwind, `tw-animate-css`, and `shadcn/tailwind.css` through PostCSS, with shared semantic theme tokens and a reduced-motion override. Component reinstalls use the CLI with reviewed diffs; preserve necessary compatibility fixes without replacing generated behavior. Review stylesheet setup alongside interaction checks, since DOM tests alone cannot catch missing animation utilities or orientation selectors.
+
 ## Local persistence
 
 Use a configurable data root with a gitignored local default. Keep the database and package files separate from source and build output. Resolve paths with platform-aware APIs rather than shell-specific commands.
@@ -95,6 +97,14 @@ There is no backup feature in the initial implementation scope; backup and resto
 ## Company boards and provider adapters
 
 Support Ashby and Lever first, including URLs such as `https://jobs.ashbyhq.com/ramp` and `https://jobs.lever.co/moonpay`. Identify supported provider URLs, normalize their board keys, and prevent duplicate tracked sources. Unsupported URLs receive a clear result; the initial system is not a generic website crawler.
+
+The [company-board tracking change](changes/add-company-board-tracking/design.md) implements source registration and management at `/boards`. URL identification is browser-safe and performs no network access; it preserves board-key case and Lever global/EU identity. SQLite enforces one source across active and archived records. Company labels can change, source identities remain fixed, and archive/restore retains the same internal UUID. Local mutations require JSON and the same loopback origin. Run `pnpm db:migrate` explicitly before use; requests and builds do not apply migrations.
+
+The [board-name suggestions change](changes/archive/2026-10-27-add-board-name-suggestions/design.md) adds URL-first entry, an immediate browser-safe slug placeholder and an optional server-side page metadata lookup. `POST /api/boards/name-suggestion` reuses URL validation and the local origin guard, performs no database work, blocks redirects and bounds provider reads to 256 KiB and four seconds. Server-only `parse5` extracts names without executing HTML. TanStack Query debounces and cancels lookups; the current URL determines the placeholder, and suggestions never write to form values. Registration submits the trimmed custom name or current suggestion when blank, independently of lookup completion and including offline. Supplemental help uses hover-enabled Base UI popovers that also support keyboard activation and touch, while field labels and errors remain visible.
+
+The [board-management UI change](changes/archive/2026-10-27-refine-board-management-ui/design.md) identifies the page through the selected Boards navigation link, with a hidden accessible heading and the view tabs and New board sharing a toolbar. A small client navigation component tracks the current pathname within the server layout. Registration opens in a CLI-installed shadcn Dialog. Confirmed saves close it; failures and duplicate choices stay in the dialog, with dismissal blocked during writes. Duplicate navigation closes the dialog and focuses the saved card. Cards use a provider badge and icon-labeled actions; the selected tab conveys status. Empty states and ordinary cards share a 10rem minimum height. Active names edit through a title-styled shadcn Textarea, with a hidden grid mirror preserving wrapped height. Save/Cancel replace the existing footer controls; Enter/Escape and focus restoration remain supported. Archived cards expose Restore only. These are presentation changes over the existing local API and schema.
+
+The remaining adapter responsibilities below belong to indexing. The current package exports source identification and slug-name suggestions.
 
 Each provider adapter must:
 

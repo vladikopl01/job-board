@@ -1,6 +1,6 @@
 # Agreed technology stack
 
-Status: agreed target as of 2026-10-17, with the workspace foundation implemented in `apps/web` and `packages/db`. Foundation dependencies are pinned in the manifests and lockfile; the remaining feature dependencies will be introduced when needed. Read this with the [architecture](architecture.md) and [roadmap](roadmap.md).
+Status: agreed target, updated 2026-10-27, with workspace foundations and company board management implemented in `apps/web`, `packages/db`, and `packages/job-boards`. TanStack Query 5, TanStack Form, and application Zod 4 are now pinned with the existing foundation dependencies. Remaining feature dependencies will be introduced when needed. Read this with the [architecture](architecture.md) and [roadmap](roadmap.md).
 
 ## Platform and workspace
 
@@ -22,7 +22,8 @@ The latest workspace decision selects pnpm, replacing the earlier Bun package-ma
 | Concern | Choice | Responsibility |
 | --- | --- | --- |
 | Styling | Tailwind CSS 4 | Responsive layout, theme tokens, and component styles. |
-| Components | shadcn/ui with Base UI primitives | Accessible, locally owned interface components. |
+| Components | shadcn/ui with Base UI primitives, `base-nova` preset | Accessible, locally owned interface components installed and reinstalled through the shadcn CLI. |
+| Shared component styles | `tw-animate-css` and `shadcn/tailwind.css` | Supply generated popup motion and shared state/orientation variants through the app's PostCSS pipeline. |
 | Icons | Lucide | A consistent icon set. |
 | Server data in the browser | TanStack Query 5 | Cache local API results, manage mutations, and observe task progress. |
 | Forms | TanStack Form | Profile blocks, board forms, notes, and application inputs. |
@@ -30,8 +31,11 @@ The latest workspace decision selects pnpm, replacing the earlier Bun package-ma
 | URL state | nuqs | Represent search, filters, sort, and pagination in URL search parameters. |
 | Transient interface state | React state | Manage open panels, dialogs, and other ephemeral interactions. |
 | Local API | Next.js Route Handlers | Expose validated reads, mutations, downloads, and task status from the Node runtime. |
+| Board-page metadata | parse5 8, server-only | Extract optional company-name suggestions from bounded HTML without executing scripts. |
 
 Keep schemas shared between a route and its callers without importing server-only dependencies into browser code. A separate API service, RPC framework, and global state store are unnecessary for the initial design.
+
+Use the existing `apps/web/components.json` configuration for CLI installs. Review dry runs and diffs before replacing installed primitives, then inspect generated files, dependencies and CSS and apply Oxfmt. Do not handwrite replacement shadcn primitives or copy their source. Application-specific UI composes the installed components. Keep the official semantic theme tokens and shared stylesheet imports complete; honor reduced-motion preferences without removing help or keyboard interactions. See [repository guidance](../AGENTS.md) and the [style alignment change](changes/archive/2026-10-27-align-shadcn-ui-setup/design.md).
 
 ## Persistence, ingestion, and tasks
 
