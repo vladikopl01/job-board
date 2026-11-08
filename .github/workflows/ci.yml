@@ -45,7 +45,10 @@ jobs:
       - name: Type-check without a prior build or database
         run: pnpm typecheck
 
-      - name: Test providers, routes, components, and native SQLite migrations
+      - name: Check browser-safe and server provider exports
+        run: pnpm --filter @job-board/job-boards exec node --input-type=module --eval "await import('@job-board/job-boards'); await import('@job-board/job-boards/server')"
+
+      - name: Test feed fixtures, migration upgrades, reconciliation, coordination, routes, and UI
         run: pnpm test
 
       - name: Initialize temporary database
