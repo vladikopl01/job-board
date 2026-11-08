@@ -1,6 +1,6 @@
 # Agreed technology stack
 
-Status: agreed target, updated 2026-10-27, with workspace foundations and company board management implemented in `apps/web`, `packages/db`, and `packages/job-boards`. TanStack Query 5, TanStack Form, and application Zod 4 are now pinned with the existing foundation dependencies. Remaining feature dependencies will be introduced when needed. Read this with the [architecture](architecture.md) and [roadmap](roadmap.md).
+Status: agreed target, updated 2026-10-27, with workspace foundations, company board management, and Ashby/Lever indexing implemented in `apps/web`, `packages/db`, and `packages/job-boards`. TanStack Query 5, TanStack Form, Zod 4, nuqs, and server-side parse5 are pinned with the foundation dependencies. Unread/discovery, AI, and document features remain planned; their remaining dependencies will be introduced when needed. Read this with the [architecture](architecture.md) and [roadmap](roadmap.md).
 
 ## Platform and workspace
 
@@ -32,6 +32,7 @@ The latest workspace decision selects pnpm, replacing the earlier Bun package-ma
 | Transient interface state | React state | Manage open panels, dialogs, and other ephemeral interactions. |
 | Local API | Next.js Route Handlers | Expose validated reads, mutations, downloads, and task status from the Node runtime. |
 | Board-page metadata | parse5 8, server-only | Extract optional company-name suggestions from bounded HTML without executing scripts. |
+| Imported description rendering | `sanitize-html` 2.18.1, server-only | Preserve readable source structure and safe links through an explicit allowlist before the API exposes HTML. |
 
 Keep schemas shared between a route and its callers without importing server-only dependencies into browser code. A separate API service, RPC framework, and global state store are unnecessary for the initial design.
 
@@ -50,6 +51,8 @@ Use the existing `apps/web/components.json` configuration for CLI installs. Revi
 | Refresh and AI task state | SQLite task records | Persist queued work, ownership, progress, outcomes, and interruptions. |
 | Task execution | A bounded coordinator inside the Next.js server | Run asynchronous provider requests and Codex executions without a separate worker process. |
 | Files | A configurable local data directory | Keep SQLite and generated package bytes outside tracked source files. |
+
+The [job-indexing change](changes/archive/2026-11-08-add-job-indexing/design.md) implements the feed contract through a browser-safe root and `@job-board/job-boards/server`. The Next.js refresh coordinator uses feature-specific SQLite task records, a two-attempt concurrency limit, fixed leases, awaited `after` callbacks, and atomic Drizzle reconciliation. No generic task framework or AI dependency is introduced. Jobs browsing uses nuqs for Open/History and bounded pagination; contains search remains planned.
 
 Prefer Drizzle for all supported SQL. Use a raw SQL migration or query only when an actual requirement cannot be expressed through Drizzle, and keep that exception contained. SQLite FTS5 is deferred: it offers a specialized full-text index and relevance features, but introduces virtual-table, synchronization, and query work that basic contains search does not require.
 

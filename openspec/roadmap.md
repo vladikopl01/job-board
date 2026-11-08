@@ -1,6 +1,6 @@
 # Product roadmap
 
-Status: agreed direction, updated 2026-10-27. Workspace foundations and company board management are implemented; indexing and later themes remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
+Status: agreed direction, updated 2026-10-27. Workspace foundations, company board management, and indexed openings with minimal local browsing are implemented; unread/discovery and later themes remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
 
 The [stack](tech-stack.md) and [architecture](architecture.md) define the current baseline. Each theme should be delivered through focused OpenSpec feature changes with behavior specs, design where needed, and implementation tasks. Completing this documentation does not complete any product theme below.
 
@@ -21,7 +21,7 @@ Ready when a fresh clone can install, create its local database, run, and pass t
 
 ## Company board tracking
 
-Implementation is present in the [company-board tracking change](changes/archive/2026-10-27-add-company-board-tracking/tasks.md): local registration, renaming, duplicate handling, active/archived views, and reversible archive/restore. The source-identification package is in use; complete feed snapshots remain part of indexed openings. Cross-platform checks for this feature remain pending until the expanded CI matrix runs.
+Implementation is present in the [company-board tracking change](changes/archive/2026-10-27-add-company-board-tracking/tasks.md): local registration, renaming, duplicate handling, active/archived views, and reversible archive/restore. The source-identification package is in use; complete feed snapshots are delivered by indexed openings below. Cross-platform checks remain pending until the expanded CI matrix runs.
 
 The [board-name suggestions change](changes/archive/2026-10-27-add-board-name-suggestions/tasks.md) adds URL-first entry with name placeholders from optional page metadata and an immediate offline slug fallback. Users can enter an override or leave the name blank to save the suggestion. Supplemental help opens through info buttons. Saving remains independent of lookup completion.
 
@@ -38,6 +38,8 @@ Let the user build and manage the tracking list.
 Depends on workspace persistence and the application shell. Ready when the tracked list survives restarts and active/archive behavior is predictable.
 
 ## Indexed openings
+
+Implementation is present in the [job-indexing change](changes/archive/2026-11-08-add-job-indexing/tasks.md): complete validated Ashby and Lever global/EU adapters, atomic local reconciliation, persisted bounded refresh execution, app-visit/manual triggers, archive fencing, retained history, and confirmed Treat as new. Jobs provides Open/History lists with nuqs pagination and inert local details. Fixture and temporary-SQLite tests cover failure/identity/recovery boundaries; the expanded three-system CI matrix still needs to run. Unread state and richer discovery below are separate work.
 
 Turn supported boards into a durable local index.
 
