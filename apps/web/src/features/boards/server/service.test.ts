@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import type { DatabaseConnection } from "@job-board/db";
-import { boards } from "@job-board/db/schema";
+import { boards, refreshTasks } from "@job-board/db/schema";
 import { eq } from "drizzle-orm";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
@@ -45,6 +45,17 @@ it("normalizes a saved source, uses a UUID, trims labels and survives reopen", (
   connection.close();
   getDatabase.mockReturnValue(workspace.connect().db);
   expect(listBoards()).toEqual([saved]);
+});
+
+it("rolls back registration if its first indexing task cannot be saved", () => {
+  const { connection } = storage();
+  connection.db.$client.exec(`
+    CREATE TRIGGER reject_initial_refresh BEFORE INSERT ON board_refresh_tasks
+    BEGIN SELECT RAISE(ABORT, 'Cannot enqueue initial indexing'); END;
+  `);
+  expect(() => createBoard(ramp)).toThrow("Cannot enqueue initial indexing");
+  expect(listBoards()).toEqual([]);
+  expect(connection.db.select().from(refreshTasks).all()).toEqual([]);
 });
 
 it("rejects equivalent active and archived duplicates without renaming or restoring them", () => {
@@ -107,7 +118,11 @@ it("renames archived boards and preserves identity, creation time and no-op time
 
   vi.setSystemTime(new Date("2026-10-27T13:00:00Z"));
   const restored = updateBoard({ id: saved.id, input: { archived: false, displayName: "Ramp" } });
-  expect(restored).toEqual({ ...saved, updatedAt: "2026-10-27T13:00:00.000Z" });
+  expect(restored).toEqual({
+    ...saved,
+    updatedAt: "2026-10-27T13:00:00.000Z",
+    refreshGeneration: 2,
+  });
   vi.setSystemTime(new Date("2026-10-27T14:00:00Z"));
   expect(updateBoard({ id: saved.id, input: { archived: false } })).toEqual(restored);
 });

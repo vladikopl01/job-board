@@ -1,3 +1,12 @@
+export {
+  normalizedPostingSchema,
+  employerUrlSchema,
+  type NormalizedPosting,
+  type PostingSnapshot,
+  type PostingLocation,
+  type JsonValue,
+} from "./posting.ts";
+
 type BoardKey = {
   boardKey: string;
   canonicalUrl: string;

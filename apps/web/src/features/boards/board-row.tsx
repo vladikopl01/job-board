@@ -1,6 +1,7 @@
 import { useForm } from "@tanstack/react-form";
 import { cn } from "cn";
 import { ArchiveIcon, ArchiveRestoreIcon, ExternalLinkIcon, PencilIcon } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
+import { BoardRefreshButton, BoardRefreshFeedback } from "@/features/refresh/board-refresh";
 
 import { boardErrorMessage, boardFieldErrors } from "./api";
 import { useUpdateBoard } from "./queries";
@@ -47,6 +49,7 @@ export function BoardRow({
   const form = useForm({
     defaultValues: { displayName: board.displayName },
     validators: { onSubmit: renameBoardSchema },
+    onSubmitInvalid: () => input.current?.focus(),
     onSubmit: async ({ value }) => {
       try {
         const saved = await update.mutateAsync({
@@ -82,7 +85,11 @@ export function BoardRow({
       id={`board-${board.id}`}
       tabIndex={-1}
       aria-labelledby={`board-name-${board.id}`}
-      className="flex min-h-40 min-w-0 flex-col justify-between gap-4 rounded-xl border p-5 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4 sm:p-6"
+      className={cn(
+        "relative isolate flex min-h-40 min-w-0 flex-col justify-between gap-4 rounded-xl border p-5 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4 sm:p-6",
+        !editing &&
+          "cursor-pointer transition-colors hover:bg-muted/50 focus-within:bg-muted/50 motion-reduce:transition-none",
+      )}
     >
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -91,7 +98,17 @@ export function BoardRow({
               id={`board-name-${board.id}`}
               className={cn(boardTitleClassName, editing && "sr-only")}
             >
-              {board.displayName}
+              {editing ? (
+                board.displayName
+              ) : (
+                <Link
+                  href={`/boards/${board.id}`}
+                  prefetch={false}
+                  className="outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-offset-4 focus-visible:after:outline-ring"
+                >
+                  {board.displayName}
+                </Link>
+              )}
             </h3>
             {editing ? (
               <form
@@ -182,17 +199,23 @@ export function BoardRow({
           href={board.canonicalUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="w-fit max-w-full rounded-sm text-sm text-primary underline underline-offset-4 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
+          className="relative z-10 w-fit max-w-full rounded-sm text-sm text-primary underline underline-offset-4 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
         >
           <span className="wrap-anywhere">{board.canonicalUrl}</span>{" "}
           <ExternalLinkIcon aria-hidden="true" className="inline size-3.5" />
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       </div>
+      {!archived ? (
+        <BoardRefreshFeedback id={board.id} lastSuccess={board.lastSuccessfulRefreshAt} />
+      ) : null}
       {/* Keep Rename's click from becoming a submit when the footer switches modes. */}
-      <div key={editing ? "rename-actions" : "board-actions"} className="flex flex-wrap gap-2">
+      <div
+        key={editing ? "rename-actions" : "board-actions"}
+        className="flex flex-wrap items-start gap-3"
+      >
         {editing ? (
-          <>
+          <div className="relative z-10 ms-auto flex flex-wrap gap-2">
             <Button type="submit" form={formId} disabled={update.isPending}>
               {update.isPending ? "Saving…" : "Save name"}
             </Button>
@@ -204,46 +227,55 @@ export function BoardRow({
             >
               Cancel
             </Button>
-          </>
+          </div>
         ) : (
           <>
             {!archived ? (
+              <BoardRefreshButton
+                id={board.id}
+                name={board.displayName}
+                disabled={update.isPending}
+              />
+            ) : null}
+            <div className="relative z-10 ms-auto flex flex-wrap gap-2">
+              {!archived ? (
+                <Button
+                  ref={renameButton}
+                  type="button"
+                  variant="outline"
+                  disabled={update.isPending}
+                  aria-label={`Rename ${board.displayName}`}
+                  onClick={() => {
+                    update.reset();
+                    form.reset({ displayName: board.displayName });
+                    setRenaming(true);
+                  }}
+                >
+                  <PencilIcon aria-hidden="true" data-icon="inline-start" />
+                  Rename
+                </Button>
+              ) : null}
               <Button
-                ref={renameButton}
                 type="button"
                 variant="outline"
                 disabled={update.isPending}
-                aria-label={`Rename ${board.displayName}`}
-                onClick={() => {
-                  update.reset();
-                  form.reset({ displayName: board.displayName });
-                  setRenaming(true);
-                }}
+                aria-label={`${archived ? "Restore" : "Archive"} ${board.displayName}`}
+                onClick={() => void changeArchiveState()}
               >
-                <PencilIcon aria-hidden="true" data-icon="inline-start" />
-                Rename
+                {archived ? (
+                  <ArchiveRestoreIcon aria-hidden="true" data-icon="inline-start" />
+                ) : (
+                  <ArchiveIcon aria-hidden="true" data-icon="inline-start" />
+                )}
+                {update.isPending
+                  ? archived
+                    ? "Restoring…"
+                    : "Archiving…"
+                  : archived
+                    ? "Restore"
+                    : "Archive"}
               </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              disabled={update.isPending}
-              aria-label={`${archived ? "Restore" : "Archive"} ${board.displayName}`}
-              onClick={() => void changeArchiveState()}
-            >
-              {archived ? (
-                <ArchiveRestoreIcon aria-hidden="true" data-icon="inline-start" />
-              ) : (
-                <ArchiveIcon aria-hidden="true" data-icon="inline-start" />
-              )}
-              {update.isPending
-                ? archived
-                  ? "Restoring…"
-                  : "Archiving…"
-                : archived
-                  ? "Restore"
-                  : "Archive"}
-            </Button>
+            </div>
           </>
         )}
       </div>

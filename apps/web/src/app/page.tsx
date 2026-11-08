@@ -1,7 +1,8 @@
 import { BriefcaseBusinessIcon } from "lucide-react";
+import { cn } from "cn";
 import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia } from "@/components/ui/empty";
 
 export default function WorkspacePage() {
@@ -29,9 +30,9 @@ export default function WorkspacePage() {
             search develops.
           </EmptyDescription>
         </EmptyHeader>
-        <Button render={<Link href="/boards" />} nativeButton={false}>
+        <Link href="/boards" className={cn(buttonVariants({ variant: "outline" }))}>
           Manage boards
-        </Button>
+        </Link>
       </Empty>
     </div>
   );

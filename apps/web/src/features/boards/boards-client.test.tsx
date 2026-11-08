@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -20,6 +20,8 @@ const ramp = {
   createdAt: "2026-10-27T10:00:00.000Z",
   updatedAt: "2026-10-27T10:00:00.000Z",
   archivedAt: null,
+  lastSuccessfulRefreshAt: null,
+  refreshGeneration: 0,
 } satisfies Board;
 
 function json(body: unknown, status = 200) {
@@ -48,6 +50,38 @@ function renderBoards() {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+it("shows card skeletons while the first local boards query is pending", async () => {
+  let release: () => void = () => {
+    throw new Error("Board response is not initialized.");
+  };
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  stubBoardApi(
+    vi.fn<typeof globalThis.fetch>(async () => {
+      await pending;
+      return json({ boards: [ramp] });
+    }),
+  );
+  const { container } = renderBoards();
+  expect(screen.getByRole("tab", { name: "Active" })).toBeEnabled();
+  expect(screen.getByRole("tab", { name: "Archived" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Refresh all" })).toBeVisible();
+  const newBoard = screen.getByRole("button", { name: "New board" });
+  expect(newBoard).toBeEnabled();
+  expect(screen.getByRole("status", { name: "Loading boards" })).toHaveClass("sr-only");
+  const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
+  expect(skeletons.length).toBeGreaterThan(0);
+  const panel = screen.getByRole("tabpanel", { name: "Active" });
+  for (const skeleton of skeletons) expect(panel.contains(skeleton)).toBe(true);
+  expect(screen.queryByText("No active boards yet")).not.toBeInTheDocument();
+  await userEvent.setup().click(newBoard);
+  expect(screen.getByRole("dialog", { name: "Add a company board" })).toBeInTheDocument();
+  await act(async () => release());
+  await waitFor(() => expect(container.querySelector('[data-slot="skeleton"]')).toBeNull());
+  expect(screen.getByRole("dialog", { name: "Add a company board" })).toBeInTheDocument();
 });
 
 it("lets a keyboard user correct a URL and save a company without losing its name", async () => {
@@ -80,10 +114,11 @@ it("lets a keyboard user correct a URL and save a company without losing its nam
   const url = screen.getByLabelText("Board URL");
   await waitFor(() => expect(url).toHaveAttribute("aria-invalid", "true"));
   expect(url).toHaveAccessibleDescription(/board/i);
+  expect(url).toHaveFocus();
   expect(screen.getByLabelText("Company name (optional)")).toHaveValue("  Ramp  ");
   expect(fetch).toHaveBeenCalledTimes(1);
 
-  await user.keyboard("{Shift>}{Tab}{Tab}{Tab}{/Shift}{Control>}a{/Control}");
+  await user.keyboard("{Control>}a{/Control}");
   await user.paste(ramp.canonicalUrl);
   await user.tab();
   await user.tab();
@@ -217,7 +252,7 @@ it("retains entered values and confirmed boards when a save fails, then allows r
   );
   expect(screen.getByLabelText("Company name (optional)")).toHaveValue("MoonPay");
   expect(screen.getByLabelText("Board URL")).toHaveValue(moonpay.canonicalUrl);
-  expect(screen.getByText("Ramp", { selector: "h3" })).toBeInTheDocument();
+  expect(document.getElementById(`board-${ramp.id}`)).toHaveTextContent("Ramp");
   expect(screen.queryByRole("heading", { name: "MoonPay" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Save board" }));
   expect(await screen.findByRole("heading", { name: "MoonPay" })).toBeInTheDocument();
@@ -248,6 +283,9 @@ it("retains a failed rename and keeps the saved name until a successful retry", 
   const name = screen.getByLabelText("Company name for Ramp");
   expect(name).toHaveFocus();
   await user.clear(name);
+  await user.click(screen.getByRole("button", { name: "Save name" }));
+  await waitFor(() => expect(name).toHaveAttribute("aria-invalid", "true"));
+  expect(name).toHaveFocus();
   await user.type(name, "Ramp engineering");
   await user.keyboard("{Enter}");
   expect(await screen.findByRole("alert")).toHaveTextContent("Couldn’t save this name");
@@ -263,6 +301,12 @@ it("cancels an inline title edit with Escape without writing the proposed name",
   stubBoardApi(fetch);
   const user = userEvent.setup();
   renderBoards();
+  const company = await screen.findByRole("link", { name: "Ramp" });
+  expect(company).toHaveAttribute("href", `/boards/${ramp.id}`);
+  expect(company).not.toContainElement(screen.getByRole("button", { name: "Rename Ramp" }));
+  expect(company).not.toContainElement(
+    screen.getByRole("link", { name: /jobs.ashbyhq.com\/ramp.*opens in a new tab/i }),
+  );
   const rename = await screen.findByRole("button", { name: "Rename Ramp" });
   await user.click(rename);
   const name = screen.getByLabelText("Company name for Ramp");
@@ -324,6 +368,42 @@ it("distinguishes an initial load failure from an empty list and lets the user r
   expect(screen.queryByText("No active boards yet")).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Try again" }));
   expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
+});
+
+it("requests Refresh all once, shows toolbar activity and leaves New board available", async () => {
+  let releaseRefresh: () => void = () => {
+    throw new Error("Refresh response is not initialized.");
+  };
+  const pending = new Promise<void>((resolve) => {
+    releaseRefresh = resolve;
+  });
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+    if (input === "/api/refreshes") {
+      await pending;
+      return json({ results: [] });
+    }
+    return json({ boards: [ramp] });
+  });
+  stubBoardApi(fetch);
+  const user = userEvent.setup();
+  renderBoards();
+  await screen.findByRole("heading", { name: "Ramp" });
+  const refresh = screen.getByRole("button", { name: "Refresh all" });
+  await user.click(refresh);
+  expect(refresh).toBeDisabled();
+  expect(screen.getByRole("button", { name: "New board" })).toBeEnabled();
+  const activity = screen.getByText("Refreshing boards…");
+  expect(screen.getByRole("tablist", { name: "Board views" }).parentElement).toContainElement(
+    activity,
+  );
+  await user.click(refresh);
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/refreshes",
+    expect.objectContaining({ method: "POST", body: JSON.stringify({ source: "manual" }) }),
+  );
+  await act(async () => releaseRefresh());
+  await waitFor(() => expect(refresh).toBeEnabled());
 });
 
 it("blocks repeat submission and waits for a confirmed save before changing the list", async () => {

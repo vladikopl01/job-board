@@ -1,11 +1,13 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { boards } from "@job-board/db/schema";
+import { boards, refreshTasks } from "@job-board/db/schema";
 import { identifyBoardUrl } from "@job-board/job-boards";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { getDatabase } from "@/server/database";
+import { abortBoardRefresh } from "@/features/refresh/server/cancellation";
+import { enqueueRefresh } from "@/features/refresh/server/store";
 
 import { boardCreateSchema, boardIdSchema, boardPatchSchema, type Board } from "../schemas";
 import { BoardRequestError, errorCauses, invalidInput } from "./errors";
@@ -34,20 +36,26 @@ export function createBoard(input: unknown): Board {
   const db = getDatabase();
   const now = new Date().toISOString();
   try {
-    const board = db
-      .insert(boards)
-      .values({
-        id: randomUUID(),
-        ...identified.source,
-        displayName: parsed.data.displayName,
-        createdAt: now,
-        updatedAt: now,
-        archivedAt: null,
-      })
-      .returning()
-      .get();
-    if (!board) throw new Error("Board creation did not return the saved record.");
-    return board;
+    return db.transaction(
+      () => {
+        const board = db
+          .insert(boards)
+          .values({
+            id: randomUUID(),
+            ...identified.source,
+            displayName: parsed.data.displayName,
+            createdAt: now,
+            updatedAt: now,
+            archivedAt: null,
+          })
+          .returning()
+          .get();
+        if (!board) throw new Error("Board creation did not return the saved record.");
+        enqueueRefresh({ db, boardId: board.id, requestSource: "manual", now });
+        return board;
+      },
+      { behavior: "immediate" },
+    );
   } catch (cause) {
     // Only this exact constraint is a duplicate; other write failures must remain failures.
     const duplicate = [...errorCauses(cause)].some(
@@ -92,7 +100,7 @@ export function updateBoard({ id, input }: { id: string; input: unknown }): Boar
   const parsed = boardPatchSchema.safeParse(input);
   if (!parsed.success) throw invalidInput(parsed.error);
 
-  return getDatabase().transaction(
+  const saved = getDatabase().transaction(
     (transaction) => {
       const current = transaction.select().from(boards).where(eq(boards.id, parsedId.data)).get();
       if (!current) {
@@ -113,9 +121,33 @@ export function updateBoard({ id, input }: { id: string; input: unknown }): Boar
 
       const now = new Date().toISOString();
       const archivedAt = archived ? (current.archivedAt ?? now) : null;
+      const stateChanged = archived !== (current.archivedAt !== null);
+      if (stateChanged && archived) {
+        transaction
+          .update(refreshTasks)
+          .set({
+            state: "cancelled",
+            phase: "finished",
+            finishedAt: now,
+            ownerToken: null,
+            leaseExpiresAt: null,
+          })
+          .where(
+            and(
+              eq(refreshTasks.boardId, current.id),
+              inArray(refreshTasks.state, ["queued", "running"]),
+            ),
+          )
+          .run();
+      }
       const board = transaction
         .update(boards)
-        .set({ displayName, archivedAt, updatedAt: now })
+        .set({
+          displayName,
+          archivedAt,
+          updatedAt: now,
+          refreshGeneration: current.refreshGeneration + (stateChanged ? 1 : 0),
+        })
         .where(eq(boards.id, current.id))
         .returning()
         .get();
@@ -124,4 +156,6 @@ export function updateBoard({ id, input }: { id: string; input: unknown }): Boar
     },
     { behavior: "immediate" },
   );
+  if (parsed.data.archived === true) abortBoardRefresh(saved.id);
+  return saved;
 }

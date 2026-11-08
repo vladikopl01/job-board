@@ -38,7 +38,7 @@ export function assertLocalJsonMutation(request: Request) {
   ) {
     throw new BoardRequestError({
       status: 415,
-      error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Send board changes as application/json." },
+      error: { code: "UNSUPPORTED_MEDIA_TYPE", message: "Send changes as application/json." },
     });
   }
 }
@@ -64,7 +64,7 @@ export function errorResponse(cause: unknown) {
   }
 
   const missingSchema = [...errorCauses(cause)].some((error) =>
-    error.message.includes("no such table: boards"),
+    /no such (?:table|column):/.test(error.message),
   );
   const error: BoardErrorResponse["error"] = missingSchema
     ? {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,14 +15,24 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Empty, EmptyHeader } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { indexErrorMessage } from "@/features/jobs/api";
+import { useRefreshBoards } from "@/features/refresh/queries";
+import { RefreshActivity } from "@/features/refresh/refresh-activity";
+import { RefreshBatchFeedback } from "@/features/refresh/refresh-batch-feedback";
+import { useRefreshActivity, useRefreshAllActivity } from "@/features/refresh/refresh-provider";
 
 import { AddBoardForm } from "./add-board-form";
 import { boardErrorMessage, listBoards } from "./api";
 import { BoardRow } from "./board-row";
+import { BoardsSkeleton } from "./boards-skeleton";
 import { boardsQueryKey } from "./queries";
 
 export function BoardsClient() {
+  const refreshAll = useRefreshBoards();
+  const refreshing = useRefreshActivity();
+  const refreshingAll = useRefreshAllActivity();
   const [view, setView] = useState("active");
   const [announcement, setAnnouncement] = useState("");
   const [addingBoard, setAddingBoard] = useState(false);
@@ -34,6 +44,9 @@ export function BoardsClient() {
     networkMode: "always",
     retry: false,
   });
+  const boards = query.data?.filter(
+    (board) => (board.archivedAt === null ? "active" : "archived") === view,
+  );
 
   return (
     <Dialog
@@ -61,21 +74,56 @@ export function BoardsClient() {
         className="gap-5"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <TabsList aria-label="Board views">
-            <TabsTrigger id="active-boards-tab" value="active">
-              Active
-            </TabsTrigger>
-            <TabsTrigger id="archived-boards-tab" value="archived">
-              Archived
-            </TabsTrigger>
-          </TabsList>
-          <DialogTrigger render={<Button type="button" />}>
-            <PlusIcon aria-hidden="true" data-icon="inline-start" />
-            New board
-          </DialogTrigger>
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <TabsList aria-label="Board views">
+              <TabsTrigger id="active-boards-tab" value="active">
+                Active
+              </TabsTrigger>
+              <TabsTrigger id="archived-boards-tab" value="archived">
+                Archived
+              </TabsTrigger>
+            </TabsList>
+            <RefreshActivity />
+          </div>
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                refreshing ||
+                refreshAll.isPending ||
+                !query.data?.some((board) => board.archivedAt === null)
+              }
+              onClick={() => refreshAll.mutate("manual")}
+            >
+              {refreshingAll ? (
+                <Spinner aria-hidden="true" data-icon="inline-start" />
+              ) : (
+                <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
+              )}
+              Refresh all
+            </Button>
+            <DialogTrigger render={<Button type="button" />}>
+              <PlusIcon aria-hidden="true" data-icon="inline-start" />
+              New board
+            </DialogTrigger>
+          </div>
         </div>
-        {query.isPending ? (
-          <output className="block text-sm text-muted-foreground">Loading saved boards…</output>
+        <RefreshBatchFeedback
+          batch={refreshAll.isPending || refreshAll.isError ? undefined : refreshAll.data}
+          onViewActive={
+            view === "archived"
+              ? () => {
+                  setView("active");
+                  document.getElementById("active-boards-tab")?.focus();
+                }
+              : undefined
+          }
+        />
+        {refreshAll.isError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{indexErrorMessage(refreshAll.error)}</AlertDescription>
+          </Alert>
         ) : null}
         {query.isError ? (
           <Alert variant="destructive">
@@ -97,47 +145,45 @@ export function BoardsClient() {
             </Button>
           </Alert>
         ) : null}
-        {query.data
-          ? ["active", "archived"].map((state) => {
-              const boards = query.data.filter(
-                (board) => (board.archivedAt === null ? "active" : "archived") === state,
-              );
-              return (
-                <TabsContent key={state} value={state}>
-                  {boards.length > 0 ? (
-                    <ul
-                      className="flex min-w-0 flex-col gap-4"
-                      aria-label={`${state === "active" ? "Active" : "Archived"} boards`}
-                    >
-                      {boards.map((board) => (
-                        <li key={board.id} className="min-w-0">
-                          <BoardRow board={board} onStatus={setAnnouncement} />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <Empty className="min-h-40 border">
-                      <EmptyHeader>
-                        <h3 className="font-medium">
-                          {state === "active" ? "No active boards yet" : "No archived boards"}
-                        </h3>
-                      </EmptyHeader>
-                      {state === "active" ? (
-                        <DialogTrigger render={<Button type="button" variant="outline" />}>
-                          <PlusIcon aria-hidden="true" data-icon="inline-start" />
-                          Add your first board
-                        </DialogTrigger>
-                      ) : (
-                        <Button type="button" variant="outline" onClick={() => setView("active")}>
-                          View active boards
-                        </Button>
-                      )}
-                    </Empty>
-                  )}
-                </TabsContent>
-              );
-            })
-          : null}
+        <TabsContent
+          value={view}
+          aria-busy={query.isFetching}
+          className="focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-solid focus-visible:outline-ring"
+        >
+          {query.isPending ? <BoardsSkeleton /> : null}
+          {boards ? (
+            boards.length > 0 ? (
+              <ul
+                className="flex min-w-0 flex-col gap-4"
+                aria-label={`${view === "active" ? "Active" : "Archived"} boards`}
+              >
+                {boards.map((board) => (
+                  <li key={board.id} className="min-w-0">
+                    <BoardRow board={board} onStatus={setAnnouncement} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <Empty className="min-h-40 border">
+                <EmptyHeader>
+                  <h3 className="font-medium">
+                    {view === "active" ? "No active boards yet" : "No archived boards"}
+                  </h3>
+                </EmptyHeader>
+                {view === "active" ? (
+                  <DialogTrigger render={<Button type="button" variant="outline" />}>
+                    <PlusIcon aria-hidden="true" data-icon="inline-start" />
+                    Add your first board
+                  </DialogTrigger>
+                ) : (
+                  <Button type="button" variant="outline" onClick={() => setView("active")}>
+                    View active boards
+                  </Button>
+                )}
+              </Empty>
+            )
+          ) : null}
+        </TabsContent>
       </Tabs>
       <DialogContent
         className="max-h-[calc(100dvh-2rem)] overflow-y-auto"

@@ -1,3 +1,5 @@
+import { after } from "next/server";
+
 import {
   assertLocalJsonMutation,
   errorResponse,
@@ -5,6 +7,8 @@ import {
   readJson,
 } from "@/features/boards/server/http";
 import { createBoard, listBoards } from "@/features/boards/server/service";
+import { drainRefreshes } from "@/features/refresh/server/coordinator";
+import { getDatabase } from "@/server/database";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +25,12 @@ export async function POST(request: Request) {
   try {
     assertLocalJsonMutation(request);
     const input = await readJson(request);
-    return jsonResponse({ board: createBoard(input) }, 201);
+    const board = createBoard(input);
+    const db = getDatabase();
+    after(async () => {
+      await drainRefreshes({ db });
+    });
+    return jsonResponse({ board }, 201);
   } catch (cause) {
     return errorResponse(cause);
   }

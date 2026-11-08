@@ -50,6 +50,8 @@ export const boardSchema = z
     createdAt: z.iso.datetime(),
     updatedAt: z.iso.datetime(),
     archivedAt: z.iso.datetime().nullable(),
+    lastSuccessfulRefreshAt: z.iso.datetime().nullable(),
+    refreshGeneration: z.int().nonnegative(),
   })
   .refine((board) => {
     const result = identifyBoardUrl(board.canonicalUrl);

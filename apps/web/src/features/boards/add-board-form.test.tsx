@@ -21,6 +21,8 @@ const notion = {
   createdAt: "2026-10-27T10:00:00.000Z",
   updatedAt: "2026-10-27T10:00:00.000Z",
   archivedAt: null,
+  lastSuccessfulRefreshAt: null,
+  refreshGeneration: 0,
 } satisfies Board;
 
 function json(body: unknown, status = 200) {

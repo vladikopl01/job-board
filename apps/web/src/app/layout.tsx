@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { AppNav } from "@/components/app-nav";
 import { QueryProvider } from "@/components/query-provider";
+import { RefreshProvider } from "@/features/refresh/refresh-provider";
 
 import "./globals.css";
 
@@ -38,7 +40,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           tabIndex={-1}
           className="mx-auto max-w-5xl px-5 py-8 sm:px-8 sm:py-10"
         >
-          <QueryProvider>{children}</QueryProvider>
+          <NuqsAdapter>
+            <QueryProvider>
+              <RefreshProvider>{children}</RefreshProvider>
+            </QueryProvider>
+          </NuqsAdapter>
         </main>
       </body>
     </html>

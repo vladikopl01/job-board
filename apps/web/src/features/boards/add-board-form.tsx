@@ -1,7 +1,7 @@
 import { companyNameFromSlug, identifyBoardUrl } from "@job-board/job-boards";
 import { useForm, useStore } from "@tanstack/react-form";
 import { LoaderCircleIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { z } from "zod";
 
 import { InfoTip } from "@/components/info-tip";
@@ -34,6 +34,8 @@ export function AddBoardForm({
 }) {
   const create = useCreateBoard();
   const restore = useUpdateBoard();
+  const urlInput = useRef<HTMLInputElement>(null);
+  const companyInput = useRef<HTMLInputElement>(null);
   const pending = create.isPending || restore.isPending;
   const errors = boardFieldErrors(create.error);
   const duplicate =
@@ -48,6 +50,10 @@ export function AddBoardForm({
   const form = useForm({
     defaultValues: { displayName: "", url: "" },
     validators: { onSubmit: boardFormSchema },
+    onSubmitInvalid: ({ formApi }) => {
+      const input = formApi.getFieldMeta("url")?.isValid === false ? urlInput : companyInput;
+      input.current?.focus();
+    },
     onSubmit: async ({ value, formApi }) => {
       try {
         const board = await create.mutateAsync(
@@ -103,11 +109,13 @@ export function AddBoardForm({
                   <FieldLabel htmlFor="board-url">Board URL</FieldLabel>
                   <InfoTip label="About board URLs">
                     Supports Ashby and Lever, including Lever EU. Use a company board root, such as
-                    jobs.ashbyhq.com/ramp. Adding a board saves it locally; it does not index jobs.
+                    jobs.ashbyhq.com/ramp. Adding a board saves it locally and starts indexing its
+                    jobs. If you’re offline, you can retry indexing later.
                   </InfoTip>
                 </div>
                 <Input
                   id="board-url"
+                  ref={urlInput}
                   name={field.name}
                   type="url"
                   inputMode="url"
@@ -155,6 +163,7 @@ export function AddBoardForm({
                 </div>
                 <Input
                   id="board-company"
+                  ref={companyInput}
                   name={field.name}
                   autoComplete="organization"
                   maxLength={120}

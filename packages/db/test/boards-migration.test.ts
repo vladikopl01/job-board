@@ -28,5 +28,7 @@ it("applies and replays the production board migration while retaining records a
 
   const reopened = workspace.connect();
   applyMigrations({ db: reopened.db, migrationsDirectory });
-  expect(reopened.db.select().from(boards).all()).toEqual([board]);
+  expect(reopened.db.select().from(boards).all()).toEqual([
+    { ...board, lastSuccessfulRefreshAt: null, refreshGeneration: 0 },
+  ]);
 });

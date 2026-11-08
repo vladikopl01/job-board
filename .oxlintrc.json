@@ -16,6 +16,16 @@
   "settings": {
     "next": { "rootDir": "apps/web/" }
   },
+  "overrides": [
+    {
+      "files": ["apps/web/src/components/ui/spinner.tsx"],
+      "rules": { "jsx-a11y/prefer-tag-over-role": "off" }
+    },
+    {
+      "files": ["apps/web/src/components/ui/breadcrumb.tsx"],
+      "rules": { "jsx-a11y/prefer-tag-over-role": "off" }
+    }
+  ],
   "ignorePatterns": [
     ".agents/**",
     ".codex/**",

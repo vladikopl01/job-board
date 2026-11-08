@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 const links = [
   { href: "/", label: "Workspace" },
   { href: "/boards", label: "Boards" },
+  { href: "/jobs", label: "Jobs" },
 ];
 
 export function AppNav() {
@@ -15,7 +16,7 @@ export function AppNav() {
   return (
     <nav aria-label="Main navigation" className="flex flex-wrap gap-1 text-sm">
       {links.map(({ href, label }) => {
-        const active = pathname === href;
+        const active = pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
 
         return (
           <Link

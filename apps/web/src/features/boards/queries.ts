@@ -39,6 +39,10 @@ async function saveConfirmedBoard(client: QueryClient, board: Board) {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)),
   );
   await client.invalidateQueries({ queryKey: boardsQueryKey });
+  await Promise.all([
+    client.invalidateQueries({ queryKey: ["jobs"] }),
+    client.invalidateQueries({ queryKey: ["refreshes"] }),
+  ]);
 }
 
 export function useCreateBoard() {
