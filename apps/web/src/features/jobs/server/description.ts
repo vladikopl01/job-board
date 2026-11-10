@@ -87,5 +87,7 @@ export function sanitizeDescription({ html, jobUrl }: { html: string | null; job
       },
     },
   }).trim();
-  return clean || null;
+  // Empty rich-text wrappers must not hide a retained plain-text description.
+  const text = sanitizeHtml(clean, { allowedTags: [], allowedAttributes: {} }).trim();
+  return text ? clean : null;
 }
