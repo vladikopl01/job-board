@@ -8,11 +8,21 @@ const blocks = new Set([
   "h2",
   "h3",
   "h4",
+  "h5",
+  "h6",
+  "blockquote",
+  "pre",
+  "hr",
   "ul",
   "ol",
   "li",
   "br",
+  "table",
+  "caption",
   "tr",
+  "dl",
+  "dt",
+  "dd",
 ]);
 const hidden = new Set(["script", "style", "template", "noscript"]);
 
@@ -43,6 +53,7 @@ export function htmlToText(html: string): string {
     if (block) output.push("\n");
     if ("tagName" in node && node.tagName === "li") output.push("• ");
     if ("childNodes" in node) node.childNodes.forEach(visit);
+    if ("tagName" in node && (node.tagName === "th" || node.tagName === "td")) output.push(" ");
     if (block) output.push("\n");
   }
   visit(parseFragment(html));

@@ -197,6 +197,37 @@ it("uses the HTML sections when providers supply empty optional plain-text field
   }
 });
 
+it("keeps boundaries in HTML-only descriptions and table-based pay notes", async () => {
+  const salaryDescription =
+    "<table><tr><th>Region</th><th>Salary</th></tr><tr><td>London</td><td>GBP 80,000</td></tr></table>";
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      Response.json([
+        leverJob("one", {
+          description:
+            "<h5>Requirements</h5>TypeScript<h6>Benefits</h6>Learning<dl><dt>Team</dt><dd>Product</dd></dl><blockquote>Work together</blockquote><pre>Run tests</pre><hr>Apply",
+          lists: [],
+          additional: null,
+          salaryDescriptionPlain: "",
+          salaryDescription,
+        }),
+      ]),
+    )
+    .mockResolvedValueOnce(Response.json([]));
+  const posting = (await fetchSnapshot(source("https://jobs.lever.co/example"), session(fetcher)))
+    .postings[0];
+
+  expect(posting?.descriptionPlain).toMatch(
+    /Requirements\s+TypeScript\s+Benefits\s+Learning\s+Team\s+Product/u,
+  );
+  expect(posting?.descriptionPlain).toMatch(/Work together\s+Run tests\s+Apply/u);
+  expect(posting?.compensation).toMatchObject({
+    description: "Region Salary\n\nLondon GBP 80,000",
+  });
+  expect(posting?.raw.salaryDescription).toBe(salaryDescription);
+});
+
 it("rejects overlapping Lever pages and late page failures", async () => {
   for (const response of [
     Response.json([leverJob("one")]),
