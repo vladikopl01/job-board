@@ -82,6 +82,19 @@ it("restores the archived view from the URL and keeps tab changes bookmarkable",
   );
 });
 
+it("focuses a linked board after its local query finishes", async () => {
+  const previousUrl = window.location.href;
+  try {
+    window.history.replaceState(null, "", `#board-${ramp.id}`);
+    stubBoardApi(vi.fn<typeof globalThis.fetch>(async () => json({ boards: [ramp] })));
+    renderBoards();
+    await screen.findByRole("heading", { name: "Ramp" });
+    expect(document.getElementById(`board-${ramp.id}`)).toHaveFocus();
+  } finally {
+    window.history.replaceState(null, "", previousUrl);
+  }
+});
+
 it("shows card skeletons while the first local boards query is pending", async () => {
   let release: () => void = () => {
     throw new Error("Board response is not initialized.");

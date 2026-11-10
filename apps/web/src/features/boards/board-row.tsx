@@ -37,6 +37,12 @@ export function BoardRow({
   const errors = boardFieldErrors(update.error);
 
   useEffect(() => {
+    // Board data can arrive after the router's initial fragment navigation.
+    const id = `board-${board.id}`;
+    if (window.location.hash === `#${id}`) document.getElementById(id)?.focus();
+  }, [board.id]);
+
+  useEffect(() => {
     if (editing) {
       input.current?.focus();
       input.current?.select();
