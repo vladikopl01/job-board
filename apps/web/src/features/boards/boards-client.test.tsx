@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { QueryProvider } from "@/components/query-provider";
@@ -39,17 +40,46 @@ function stubBoardApi(fetch: typeof globalThis.fetch) {
   );
 }
 
-function renderBoards() {
+function renderBoards(searchParams = "", onUrlUpdate?: (event: UrlUpdateEvent) => void) {
   return render(
-    <QueryProvider>
-      <BoardsClient />
-    </QueryProvider>,
+    <NuqsTestingAdapter
+      hasMemory
+      searchParams={searchParams}
+      {...(onUrlUpdate ? { onUrlUpdate } : {})}
+    >
+      <QueryProvider>
+        <BoardsClient />
+      </QueryProvider>
+    </NuqsTestingAdapter>,
   );
 }
 
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+});
+
+it("restores the archived view from the URL and keeps tab changes bookmarkable", async () => {
+  const archived = { ...ramp, archivedAt: "2026-10-27T11:00:00.000Z" };
+  const updates = vi.fn<(event: UrlUpdateEvent) => void>();
+  stubBoardApi(vi.fn<typeof globalThis.fetch>(async () => json({ boards: [archived] })));
+  renderBoards("?view=archived", updates);
+  const user = userEvent.setup();
+
+  expect(screen.getByRole("tab", { name: "Archived" })).toHaveAttribute("aria-selected", "true");
+  expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
+  await user.click(screen.getByRole("tab", { name: "Active" }));
+  expect(await screen.findByText("No active boards yet")).toBeInTheDocument();
+  await waitFor(() =>
+    expect(updates).toHaveBeenLastCalledWith(expect.objectContaining({ queryString: "" })),
+  );
+  await user.click(screen.getByRole("tab", { name: "Archived" }));
+  expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
+  await waitFor(() =>
+    expect(updates).toHaveBeenLastCalledWith(
+      expect.objectContaining({ queryString: "?view=archived" }),
+    ),
+  );
 });
 
 it("shows card skeletons while the first local boards query is pending", async () => {

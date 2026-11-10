@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { PlusIcon, RefreshCwIcon } from "lucide-react";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { useRef, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,11 +30,13 @@ import { BoardRow } from "./board-row";
 import { BoardsSkeleton } from "./boards-skeleton";
 import { boardsQueryKey } from "./queries";
 
+const viewParser = parseAsStringLiteral(["active", "archived"]).withDefault("active");
+
 export function BoardsClient() {
   const refreshAll = useRefreshBoards();
   const refreshing = useRefreshActivity();
   const refreshingAll = useRefreshAllActivity();
-  const [view, setView] = useState("active");
+  const [view, setView] = useQueryState("view", viewParser);
   const [announcement, setAnnouncement] = useState("");
   const [addingBoard, setAddingBoard] = useState(false);
   const [savingBoard, setSavingBoard] = useState(false);
@@ -69,7 +72,7 @@ export function BoardsClient() {
       <Tabs
         value={view}
         onValueChange={(value) => {
-          if (value === "active" || value === "archived") setView(value);
+          if (value === "active" || value === "archived") void setView(value);
         }}
         className="gap-5"
       >
@@ -114,7 +117,7 @@ export function BoardsClient() {
           onViewActive={
             view === "archived"
               ? () => {
-                  setView("active");
+                  void setView("active");
                   document.getElementById("active-boards-tab")?.focus();
                 }
               : undefined
@@ -176,7 +179,7 @@ export function BoardsClient() {
                     Add your first board
                   </DialogTrigger>
                 ) : (
-                  <Button type="button" variant="outline" onClick={() => setView("active")}>
+                  <Button type="button" variant="outline" onClick={() => void setView("active")}>
                     View active boards
                   </Button>
                 )}
@@ -200,14 +203,14 @@ export function BoardsClient() {
         <AddBoardForm
           onPendingChange={setSavingBoard}
           onSaved={(board, action) => {
-            setView("active");
+            void setView("active");
             setAnnouncement(`${board.displayName} ${action}.`);
             setSavingBoard(false);
             setAddingBoard(false);
           }}
           onLocate={(board) => {
             locatedBoard.current = board.id;
-            setView(board.archived ? "archived" : "active");
+            void setView(board.archived ? "archived" : "active");
             setAddingBoard(false);
           }}
         />

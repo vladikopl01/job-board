@@ -129,11 +129,13 @@ it("polls pending tasks and updates board feedback without hiding confirmed card
   });
   vi.stubGlobal("fetch", fetcher);
   render(
-    <QueryProvider>
-      <RefreshProvider>
-        <BoardsClient />
-      </RefreshProvider>
-    </QueryProvider>,
+    <NuqsTestingAdapter hasMemory>
+      <QueryProvider>
+        <RefreshProvider>
+          <BoardsClient />
+        </RefreshProvider>
+      </QueryProvider>
+    </NuqsTestingAdapter>,
   );
   await screen.findByRole("heading", { name: "Example" });
   const activity = await screen.findByText("Refreshing boards…");
@@ -221,11 +223,13 @@ it("keeps single-board progress in its button after a batch and reveals an uncha
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
-    <QueryClientProvider client={client}>
-      <RefreshProvider>
-        <BoardsClient />
-      </RefreshProvider>
-    </QueryClientProvider>,
+    <NuqsTestingAdapter hasMemory>
+      <QueryClientProvider client={client}>
+        <RefreshProvider>
+          <BoardsClient />
+        </RefreshProvider>
+      </QueryClientProvider>
+    </NuqsTestingAdapter>,
   );
   const firstResult = await screen.findByText("Up to date · 3 cached");
   await waitFor(() => expect(screen.getByRole("button", { name: "Refresh all" })).toBeEnabled());
@@ -324,11 +328,13 @@ it.each(["failed", "deferred"] as const)(
     );
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <QueryClientProvider client={client}>
-        <RefreshProvider>
-          <BoardsClient />
-        </RefreshProvider>
-      </QueryClientProvider>,
+      <NuqsTestingAdapter hasMemory>
+        <QueryClientProvider client={client}>
+          <RefreshProvider>
+            <BoardsClient />
+          </RefreshProvider>
+        </QueryClientProvider>
+      </NuqsTestingAdapter>,
     );
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Example" });
