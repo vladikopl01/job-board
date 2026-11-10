@@ -93,6 +93,23 @@ it("traverses short Lever EU pages until empty and retains full descriptions onc
   );
 });
 
+it("accepts Lever's onsite spelling without changing the retained source value", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      Response.json([
+        leverJob("one", { workplaceType: "onsite" }),
+        leverJob("two", { workplaceType: "on-site" }),
+      ]),
+    )
+    .mockResolvedValueOnce(Response.json([]));
+  const result = await fetchSnapshot(source("https://jobs.lever.co/example"), session(fetcher));
+  expect(result.postings).toMatchObject([
+    { workplaceType: "on-site", raw: { workplaceType: "onsite" } },
+    { workplaceType: "on-site", raw: { workplaceType: "on-site" } },
+  ]);
+});
+
 it("retains Lever headings, list boundaries, links, and plain-only sections in rich descriptions", async () => {
   const fetcher = vi
     .fn<typeof fetch>()

@@ -105,7 +105,10 @@ const leverSchema = z.looseObject({
     })
     .optional(),
   country: optionalText,
-  workplaceType: z.enum(["remote", "hybrid", "on-site", "unspecified"]).nullish(),
+  workplaceType: z
+    .enum(["remote", "hybrid", "on-site", "onsite", "unspecified"])
+    .transform((value) => (value === "onsite" ? "on-site" : value))
+    .nullish(),
   salaryRange: z
     .looseObject({
       min: z.number().nullish(),
