@@ -126,6 +126,7 @@ export function AddBoardForm({
                   onBlur={field.handleBlur}
                   onChange={(event) => {
                     create.reset();
+                    restore.reset();
                     field.handleChange(event.target.value);
                   }}
                   disabled={pending}
@@ -172,6 +173,7 @@ export function AddBoardForm({
                   onBlur={field.handleBlur}
                   onChange={(event) => {
                     create.reset();
+                    restore.reset();
                     field.handleChange(event.target.value);
                   }}
                   disabled={pending}

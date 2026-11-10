@@ -60,6 +60,47 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("clears a failed restore when editing the draft for another board", async () => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+    if (init?.method === "PATCH") {
+      return json(
+        { error: { code: "STORAGE_ERROR", message: "Couldn’t restore this board. Try again." } },
+        500,
+      );
+    }
+    if (_input === "/api/boards") {
+      return json(
+        {
+          error: {
+            code: "DUPLICATE_BOARD",
+            message: "This source is already archived.",
+            existingBoard: { id: notion.id, archived: true },
+          },
+        },
+        409,
+      );
+    }
+    return json({ displayName: "Notion", source: "metadata" });
+  });
+  vi.stubGlobal("fetch", fetch);
+  const { user } = renderForm();
+  const url = screen.getByLabelText("Board URL");
+  await user.type(screen.getByLabelText("Company name (optional)"), "My company");
+  await user.click(url);
+  await user.paste(notionUrl);
+  await user.click(screen.getByRole("button", { name: "Save board" }));
+  await user.click(await screen.findByRole("button", { name: "Restore board" }));
+  await screen.findByText("Couldn’t restore this board. Try again.");
+  expect(url).toHaveValue(notionUrl);
+  expect(screen.getByRole("button", { name: "Restore board" })).toBeEnabled();
+
+  await user.clear(url);
+  await user.paste(moonpayUrl);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Company name (optional)")).toHaveValue("My company");
+  expect(fetch.mock.calls.filter(([, init]) => init?.method === "PATCH")).toHaveLength(1);
+});
+
 it("suggests names only through the placeholder and saves a custom override", async () => {
   const fetch = vi
     .fn<typeof globalThis.fetch>()
