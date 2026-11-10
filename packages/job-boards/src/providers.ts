@@ -137,7 +137,9 @@ function leverPosting(input: unknown): NormalizedPosting {
     ...description,
     jobUrl: job.hostedUrl,
     applyUrl: job.applyUrl,
-    locations: [...locations].map((text) => location(text, null, job.country ?? null)),
+    locations: [...locations].map((text) =>
+      location(text, null, text === job.categories?.location ? (job.country ?? null) : null),
+    ),
     workplaceType:
       job.workplaceType === "unspecified" || job.workplaceType == null
         ? "unknown"

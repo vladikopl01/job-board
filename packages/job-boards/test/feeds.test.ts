@@ -69,6 +69,34 @@ it.each([
   await expect(fetchSnapshot(source(), session(fetcher))).rejects.toBeInstanceOf(FeedError);
 });
 
+it("keeps Lever's primary country separate from secondary location countries", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(
+      Response.json([
+        leverJob("one", {
+          country: "IN",
+          categories: {
+            location: "Bengaluru, Karnataka",
+            allLocations: ["Bengaluru, Karnataka", "South Africa - Hybrid"],
+          },
+        }),
+        leverJob("two", { country: "GB", categories: { allLocations: ["Europe", "London"] } }),
+      ]),
+    )
+    .mockResolvedValueOnce(Response.json([]));
+  const result = await fetchSnapshot(source("https://jobs.lever.co/example"), session(fetcher));
+  expect(result.postings[0]?.locations).toEqual([
+    { text: "Bengaluru, Karnataka", country: "IN", address: null },
+    { text: "South Africa - Hybrid", country: null, address: null },
+  ]);
+  expect(result.postings[1]?.locations).toEqual([
+    { text: "Europe", country: null, address: null },
+    { text: "London", country: null, address: null },
+  ]);
+  expect(result.postings[0]?.raw.country).toBe("IN");
+});
+
 it("traverses short Lever EU pages until empty and retains full descriptions once", async () => {
   const fetcher = vi
     .fn<typeof fetch>()
