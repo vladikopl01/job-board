@@ -99,9 +99,7 @@ export function compensationSummary(value: JsonValue): string | null {
   if (!result.success) return null;
   const compensation = result.data;
   const summary =
-    compensation.compensationTierSummary ||
-    compensation.scrapeableCompensationSalarySummary ||
-    compensation.description;
+    compensation.compensationTierSummary || compensation.scrapeableCompensationSalarySummary;
   if (summary) return summary;
   const tiers = (compensation.compensationTiers ?? []).flatMap((tier) => {
     const detail =
@@ -111,5 +109,9 @@ export function compensationSummary(value: JsonValue): string | null {
   if (tiers.length) return tiers.join("\n");
   const components = (compensation.summaryComponents ?? []).map(componentSummary).filter(Boolean);
   if (components.length) return components.join(" · ");
-  return compensation.range ? rangeSummary(compensation.range) : null;
+  return (
+    [compensation.range ? rangeSummary(compensation.range) : null, compensation.description]
+      .filter(Boolean)
+      .join("\n") || null
+  );
 }

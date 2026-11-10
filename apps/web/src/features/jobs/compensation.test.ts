@@ -35,6 +35,16 @@ it("formats salary bounds, currencies, and periods without conversion", () => {
   expect(compensationSummary({ range: { min: 0, max: 0, currency: "USD" } })).toBe("USD 0");
 });
 
+it("keeps the salary range visible alongside the employer's pay note", () => {
+  expect(
+    compensationSummary({
+      range: { min: 123000, max: 168000, currency: "USD", interval: "per-year-salary" },
+      description: "Offers vary with experience and location.",
+    }),
+  ).toBe("USD 123,000–168,000 / year\nOffers vary with experience and location.");
+  expect(compensationSummary({ description: "Includes equity." })).toBe("Includes equity.");
+});
+
 it("formats Ashby tiers and components when the top-level summary is absent", () => {
   expect(
     compensationSummary({
