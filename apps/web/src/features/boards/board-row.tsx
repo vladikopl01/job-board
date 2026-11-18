@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
 import { BoardRefreshButton, BoardRefreshFeedback } from "@/features/refresh/board-refresh";
@@ -14,18 +13,28 @@ import { BoardRefreshButton, BoardRefreshFeedback } from "@/features/refresh/boa
 import { boardErrorMessage, boardFieldErrors } from "./api";
 import { useUpdateBoard } from "./queries";
 import { boardCreateSchema, type Board } from "./schemas";
+import { ProviderBadge } from "./provider-badge";
 
 const renameBoardSchema = boardCreateSchema.pick({ displayName: true });
-const boardTitleClassName =
-  "text-lg leading-normal font-semibold whitespace-pre-wrap wrap-anywhere";
+const boardTitleClassName = "leading-normal font-semibold whitespace-pre-wrap wrap-anywhere";
 
 export function BoardRow({
   board,
   onStatus,
+  presentation = "list",
 }: {
   board: Board;
-  onStatus: (message: string) => void;
+  onStatus: (message: string, origin?: Element) => void;
+  presentation?: "list" | "card" | "detail";
 }) {
+  const Heading = presentation === "detail" ? "h1" : "h3";
+  const titleClassName = cn(
+    presentation === "card" ? "truncate leading-normal font-semibold" : boardTitleClassName,
+    presentation === "detail"
+      ? "text-3xl leading-tight tracking-tight md:text-3xl"
+      : "text-lg md:text-lg",
+  );
+  const Container = presentation === "detail" ? "header" : "article";
   const [renaming, setRenaming] = useState(false);
   const renameButton = useRef<HTMLButtonElement>(null);
   const returnFocus = useRef(false);
@@ -51,22 +60,23 @@ export function BoardRow({
     validators: { onSubmit: renameBoardSchema },
     onSubmitInvalid: () => input.current?.focus(),
     onSubmit: async ({ value }) => {
+      const origin = document.activeElement;
       try {
         const saved = await update.mutateAsync({
           id: board.id,
           input: renameBoardSchema.parse(value),
         });
-        onStatus(`${saved.displayName} renamed.`);
-        finishRename();
+        onStatus(`${saved.displayName} renamed.`, origin ?? undefined);
+        finishRename(document.activeElement === origin || document.activeElement === document.body);
       } catch {
         // Keep the proposed name editable while the confirmed board remains unchanged.
       }
     },
   });
 
-  function finishRename() {
+  function finishRename(restoreFocus = true) {
     update.reset();
-    returnFocus.current = true;
+    returnFocus.current = restoreFocus;
     setRenaming(false);
   }
 
@@ -74,45 +84,49 @@ export function BoardRow({
     try {
       const saved = await update.mutateAsync({ id: board.id, input: { archived: !archived } });
       onStatus(`${saved.displayName} ${saved.archivedAt === null ? "restored" : "archived"}.`);
-      document.getElementById(archived ? "archived-boards-tab" : "active-boards-tab")?.focus();
+      document.getElementById("board-status-filter")?.focus();
     } catch {
       // Only a confirmed response moves this board between views.
     }
   }
 
   return (
-    <article
+    <Container
       id={`board-${board.id}`}
       tabIndex={-1}
       aria-labelledby={`board-name-${board.id}`}
       className={cn(
-        "relative isolate flex min-h-40 min-w-0 flex-col justify-between gap-4 rounded-xl border p-5 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4 sm:p-6",
-        !editing &&
-          "cursor-pointer transition-colors hover:bg-muted/50 focus-within:bg-muted/50 motion-reduce:transition-none",
+        "relative isolate flex min-w-0 flex-col gap-4 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4",
+        presentation !== "detail" ? "min-h-40 rounded-xl border p-4" : "pb-6",
+        !editing && presentation !== "detail" && "cursor-pointer hover:bg-muted/50",
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <h3
+        <div className="flex flex-wrap items-center gap-3">
+          <div
+            className={cn("min-w-0", presentation !== "detail" && "flex flex-1 items-center gap-1")}
+          >
+            <Heading
               id={`board-name-${board.id}`}
-              className={cn(boardTitleClassName, editing && "sr-only")}
+              title={board.displayName}
+              className={cn(titleClassName, editing && "sr-only")}
             >
-              {editing ? (
+              {editing || presentation === "detail" ? (
                 board.displayName
               ) : (
                 <Link
-                  href={`/boards/${board.id}`}
+                  href={`/boards/${board.id}${archived ? "?view=history" : ""}`}
                   prefetch={false}
                   className="outline-none after:absolute after:inset-0 after:rounded-xl focus-visible:after:outline-2 focus-visible:after:outline-offset-4 focus-visible:after:outline-ring"
                 >
                   {board.displayName}
                 </Link>
               )}
-            </h3>
+            </Heading>
             {editing ? (
               <form
                 id={formId}
+                className="min-w-0 flex-1"
                 aria-label={`Rename ${board.displayName}`}
                 noValidate
                 onSubmit={(event) => {
@@ -134,10 +148,7 @@ export function BoardRow({
                             {/* The mirror keeps wrapped titles the same height in every browser. */}
                             <span
                               aria-hidden="true"
-                              className={cn(
-                                boardTitleClassName,
-                                "invisible col-start-1 row-start-1",
-                              )}
+                              className={cn(titleClassName, "invisible col-start-1 row-start-1")}
                             >
                               {field.state.value || "\u00a0"}
                             </span>
@@ -168,8 +179,8 @@ export function BoardRow({
                               aria-invalid={invalid}
                               aria-describedby={invalid ? `rename-errors-${board.id}` : undefined}
                               className={cn(
-                                boardTitleClassName,
-                                "col-start-1 row-start-1 h-full min-h-0 resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 shadow-none md:text-lg dark:bg-transparent",
+                                titleClassName,
+                                "col-start-1 row-start-1 h-full min-h-0 resize-none overflow-hidden rounded-sm border-0 bg-transparent p-0 shadow-none dark:bg-transparent",
                               )}
                             />
                           </div>
@@ -186,25 +197,33 @@ export function BoardRow({
                 </FieldGroup>
               </form>
             ) : null}
+            {presentation !== "detail" ? (
+              <a
+                href={board.canonicalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open ${board.displayName} source (opens in a new tab)`}
+                title="Open source board"
+                className={cn(buttonVariants({ variant: "ghost", size: "icon" }), "relative z-10")}
+              >
+                <ExternalLinkIcon aria-hidden="true" />
+              </a>
+            ) : null}
           </div>
-          <Badge variant="outline" className="mt-1">
-            {board.provider === "ashby"
-              ? "Ashby"
-              : board.sourceHost === "jobs.eu.lever.co"
-                ? "Lever · EU"
-                : "Lever"}
-          </Badge>
+          <ProviderBadge provider={board.provider} sourceHost={board.sourceHost} />
         </div>
-        <a
-          href={board.canonicalUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="relative z-10 w-fit max-w-full rounded-sm text-sm text-primary underline underline-offset-4 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
-        >
-          <span className="wrap-anywhere">{board.canonicalUrl}</span>{" "}
-          <ExternalLinkIcon aria-hidden="true" className="inline size-3.5" />
-          <span className="sr-only"> (opens in a new tab)</span>
-        </a>
+        {presentation === "detail" ? (
+          <a
+            href={board.canonicalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative z-10 w-fit max-w-full rounded-sm text-sm text-primary underline underline-offset-4 outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
+          >
+            <span className="wrap-anywhere">{board.canonicalUrl}</span>{" "}
+            <ExternalLinkIcon aria-hidden="true" className="inline size-3.5" />
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        ) : null}
       </div>
       {!archived ? (
         <BoardRefreshFeedback id={board.id} lastSuccess={board.lastSuccessfulRefreshAt} />
@@ -212,10 +231,15 @@ export function BoardRow({
       {/* Keep Rename's click from becoming a submit when the footer switches modes. */}
       <div
         key={editing ? "rename-actions" : "board-actions"}
-        className="flex flex-wrap items-start gap-3"
+        className="mt-auto flex flex-wrap items-center gap-2"
       >
         {editing ? (
-          <div className="relative z-10 ms-auto flex flex-wrap gap-2">
+          <div
+            className={cn(
+              "relative z-10 flex flex-wrap gap-2",
+              presentation !== "detail" && "ms-auto",
+            )}
+          >
             <Button type="submit" form={formId} disabled={update.isPending}>
               {update.isPending ? "Saving…" : "Save name"}
             </Button>
@@ -223,7 +247,7 @@ export function BoardRow({
               type="button"
               variant="outline"
               disabled={update.isPending}
-              onClick={finishRename}
+              onClick={() => finishRename()}
             >
               Cancel
             </Button>
@@ -237,7 +261,12 @@ export function BoardRow({
                 disabled={update.isPending}
               />
             ) : null}
-            <div className="relative z-10 ms-auto flex flex-wrap gap-2">
+            <div
+              className={cn(
+                "relative z-10 flex flex-wrap gap-2",
+                presentation !== "detail" && "ms-auto",
+              )}
+            >
               {!archived ? (
                 <Button
                   ref={renameButton}
@@ -257,7 +286,7 @@ export function BoardRow({
               ) : null}
               <Button
                 type="button"
-                variant="outline"
+                variant={archived ? "outline" : "destructive"}
                 disabled={update.isPending}
                 aria-label={`${archived ? "Restore" : "Archive"} ${board.displayName}`}
                 onClick={() => void changeArchiveState()}
@@ -284,6 +313,6 @@ export function BoardRow({
           <AlertDescription>{boardErrorMessage(update.error)}</AlertDescription>
         </Alert>
       ) : null}
-    </article>
+    </Container>
   );
 }

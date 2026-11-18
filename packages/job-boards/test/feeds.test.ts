@@ -15,6 +15,16 @@ function session(fetcher: typeof fetch, limits = feedLimits) {
   return createFeedSession({ signal: new AbortController().signal, fetcher, limits });
 }
 
+it("requests a space-containing board key with one level of URL encoding", async () => {
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValue(Response.json({ apiVersion: "1", jobs: [] }));
+  await fetchSnapshot(source("https://jobs.ashbyhq.com/Hyperliquid%20Labs"), session(fetcher));
+  expect(String(fetcher.mock.calls[0]?.[0])).toBe(
+    "https://api.ashbyhq.com/posting-api/job-board/Hyperliquid%20Labs?includeCompensation=true",
+  );
+});
+
 it("retains Ashby content, multi-location restrictions, compensation and unknown source fields", async () => {
   const job = ashbyJob("one", {
     address: { postalAddress: { addressCountry: "ESP" } },

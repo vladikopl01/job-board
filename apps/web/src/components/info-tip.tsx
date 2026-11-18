@@ -20,7 +20,7 @@ export function InfoTip({ label, children }: { label: string; children: string }
           <Button
             type="button"
             variant="ghost"
-            size="icon-xs"
+            size="icon"
             className="text-muted-foreground"
             aria-label={label}
           />

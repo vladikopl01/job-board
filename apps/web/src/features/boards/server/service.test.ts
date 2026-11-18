@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { applyMigrations } from "../../../../../../packages/db/src/migrations.ts";
 import { temporaryWorkspace } from "../../../../../../packages/db/test/helpers.ts";
+import { boardSchema } from "../schemas";
 import { BoardRequestError } from "./errors";
 import { createBoard, listBoards, updateBoard } from "./service";
 
@@ -56,6 +57,30 @@ it("rolls back registration if its first indexing task cannot be saved", () => {
   expect(() => createBoard(ramp)).toThrow("Cannot enqueue initial indexing");
   expect(listBoards()).toEqual([]);
   expect(connection.db.select().from(refreshTasks).all()).toEqual([]);
+});
+
+it("persists a spaced board key and treats raw and encoded spaces as the same source", () => {
+  const { workspace, connection } = storage();
+  const saved = createBoard({
+    displayName: "Hyperliquid Labs",
+    url: "https://jobs.ashbyhq.com/%48yperliquid%20Labs/?ref=test#jobs",
+  });
+  expect(saved).toMatchObject({
+    boardKey: "Hyperliquid Labs",
+    canonicalUrl: "https://jobs.ashbyhq.com/Hyperliquid%20Labs",
+  });
+  expect(boardSchema.safeParse(saved).success).toBe(true);
+  expect(() =>
+    createBoard({ displayName: "Another name", url: "https://jobs.ashbyhq.com/Hyperliquid Labs" }),
+  ).toThrow(
+    expect.objectContaining({
+      status: 409,
+      error: expect.objectContaining({ existingBoard: { id: saved.id, archived: false } }),
+    }),
+  );
+  connection.close();
+  getDatabase.mockReturnValue(workspace.connect().db);
+  expect(listBoards()).toEqual([saved]);
 });
 
 it("rejects equivalent active and archived duplicates without renaming or restoring them", () => {

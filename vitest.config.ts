@@ -13,6 +13,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["packages/**/*.test.ts", "apps/web/**/*.test.{ts,tsx}"],
+    // Bound concurrent DOM work as the collection interaction suite grows.
+    maxWorkers: 2,
+    testTimeout: 20_000,
     restoreMocks: true,
   },
 });

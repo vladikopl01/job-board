@@ -1,4 +1,4 @@
-import { companyNameFromSlug, identifyBoardUrl } from "@job-board/job-boards";
+import { cleanBoardUrl, companyNameFromSlug, identifyBoardUrl } from "@job-board/job-boards";
 import { useForm, useStore } from "@tanstack/react-form";
 import { LoaderCircleIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -122,12 +122,29 @@ export function AddBoardForm({
                   autoComplete="url"
                   spellCheck={false}
                   maxLength={2048}
+                  placeholder="https://jobs.ashbyhq.com/ramp"
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(event) => {
                     create.reset();
                     restore.reset();
                     field.handleChange(event.target.value);
+                  }}
+                  onPaste={(event) => {
+                    const input = event.currentTarget;
+                    const start = input.selectionStart ?? input.value.length;
+                    const end = input.selectionEnd ?? input.value.length;
+                    const pastedValue =
+                      input.value.slice(0, start) +
+                      event.clipboardData.getData("text/plain") +
+                      input.value.slice(end);
+                    const cleanedValue = cleanBoardUrl(pastedValue);
+                    if (cleanedValue === pastedValue) return;
+
+                    event.preventDefault();
+                    create.reset();
+                    restore.reset();
+                    field.handleChange(cleanedValue);
                   }}
                   disabled={pending}
                   aria-invalid={invalid}
@@ -168,7 +185,7 @@ export function AddBoardForm({
                   name={field.name}
                   autoComplete="organization"
                   maxLength={120}
-                  placeholder={suggestedName}
+                  placeholder={suggestedName || "e.g. Ramp"}
                   value={field.state.value}
                   onBlur={field.handleBlur}
                   onChange={(event) => {
@@ -188,10 +205,12 @@ export function AddBoardForm({
           }}
         </form.Field>
         {create.isError ? (
-          <Alert variant="destructive">
-            <AlertDescription>{boardErrorMessage(create.error)}</AlertDescription>
+          <Alert variant="destructive" className="flex flex-wrap items-center gap-3 p-3">
+            <AlertDescription className="min-w-0 flex-1 basis-48">
+              {boardErrorMessage(create.error)}
+            </AlertDescription>
             {duplicate ? (
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="flex max-w-full flex-wrap gap-2 text-foreground">
                 <Button
                   type="button"
                   variant="outline"
@@ -214,7 +233,7 @@ export function AddBoardForm({
           </Alert>
         ) : null}
         {restore.isError ? (
-          <Alert variant="destructive">
+          <Alert variant="destructive" className="p-3">
             <AlertDescription>{boardErrorMessage(restore.error)}</AlertDescription>
           </Alert>
         ) : null}

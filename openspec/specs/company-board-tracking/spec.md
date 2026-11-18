@@ -7,14 +7,25 @@ Let users maintain a durable local list of supported company job boards, with cl
 ## Requirements
 
 ### Requirement: Supported company board URLs
-
-The system SHALL accept absolute HTTPS board-root URLs on `jobs.ashbyhq.com`, `jobs.lever.co`, and `jobs.eu.lever.co`, containing one nonempty board-key path segment and an optional trailing slash. It SHALL trim surrounding whitespace, normalize the scheme/host and default port, decode percent-encoded unreserved board-key characters, and discard query parameters and fragments. It SHALL preserve board-key case and Lever's regional host. It SHALL reject credentials, non-default ports, unsupported hosts or schemes, ambiguous encoded path separators, and posting/application URLs rather than guessing a board from them.
+The system SHALL accept absolute HTTPS board-root URLs on `jobs.ashbyhq.com`, `jobs.lever.co`, and `jobs.eu.lever.co`, containing one nonempty board-key path segment and an optional trailing slash. It SHALL trim surrounding whitespace, normalize the scheme/host and default port, decode percent-encoded unreserved board-key characters and internal ASCII spaces, and discard query parameters and fragments. Internal spaces SHALL be encoded as `%20` in canonical URLs while remaining decoded in the board identity. It SHALL preserve board-key case and Lever's regional host. It SHALL reject credentials, non-default ports, unsupported hosts or schemes, ambiguous encoded path separators, and posting/application URLs rather than guessing a board from them. Pasting a supported board URL SHALL immediately replace the resulting input value with its canonical URL, respecting the current text selection. Discarded tracking parameters and fragments SHALL NOT count toward the pasted board root's length limit.
 
 #### Scenario: Equivalent board URLs
 
 - **WHEN** the user supplies ` https://JOBS.ASHBYHQ.COM/%72amp/?utm_source=test#jobs `
 - **THEN** the identified source is Ashby board `ramp` at `https://jobs.ashbyhq.com/ramp`
 - **AND** the discarded query and fragment are not retained in the stored source URL
+
+#### Scenario: Pasted board name with spaces and tracking data
+
+- **WHEN** the user pastes `https://jobs.ashbyhq.com/Hyperliquid%20Labs/?utm_source=test#jobs`
+- **THEN** the URL input immediately shows `https://jobs.ashbyhq.com/Hyperliquid%20Labs`
+- **AND** registration and later provider requests preserve the board key `Hyperliquid Labs` without double encoding
+
+#### Scenario: Replacing a draft with a long tracked link
+
+- **WHEN** the user selects an existing URL draft and pastes a supported board root with more than 2048 characters of tracking parameters
+- **THEN** the selection is replaced by the clean canonical root before the input length limit is applied
+- **AND** the clean URL can be saved using the ordinary registration flow
 
 #### Scenario: Regional and case-sensitive identities
 
@@ -29,7 +40,6 @@ The system SHALL accept absolute HTTPS board-root URLs on `jobs.ashbyhq.com`, `j
 - **AND** no board is created and no supplied URL is fetched
 
 ### Requirement: Durable local registration
-
 The system SHALL register a board with a server-assigned internal identifier, a trimmed company display name of 1–120 characters, a supported canonical source, and an initially active state. URL input SHALL be limited to 2048 characters. It SHALL save the board and its first queued indexing task atomically before acknowledging registration. Provider work SHALL run after the local save response and SHALL NOT determine registration success. Successful registration SHALL NOT claim the board's existence or open jobs are verified before indexing succeeds. Saved boards and queued tasks SHALL survive reloads and server restarts.
 
 #### Scenario: Register a company board
@@ -58,7 +68,6 @@ The system SHALL register a board with a server-assigned internal identifier, a 
 - **AND** no partially saved board is reported as successful
 
 ### Requirement: One record per canonical source
-
 The system SHALL enforce uniqueness of the provider, regional host, and board key across active and archived boards, including concurrent creation attempts. Company display names SHALL NOT determine source identity. A duplicate attempt SHALL identify the existing board and its archive state without renaming it, creating another identifier, or restoring it implicitly.
 
 #### Scenario: Duplicate active source
@@ -80,7 +89,6 @@ The system SHALL enforce uniqueness of the provider, regional host, and board ke
 - **AND** the same company label on different providers or on different Lever regional hosts remains permitted
 
 ### Requirement: Read the local tracking list
-
 The system SHALL provide board management at `/boards` with working navigation from the workspace. It SHALL label the navigation item Boards, visually and accessibly identify the current page, and omit a duplicate visible page title while retaining an accessible page heading. It SHALL show active boards by default and provide a separate archived view. View tabs and New board SHALL share a toolbar row. Each record SHALL show its company name, provider as a text badge, canonical source link, and applicable management actions with icons and visible labels. Active boards SHALL additionally expose a real Refresh action and concise per-board refresh feedback. The selected tab SHALL communicate archive state without a redundant status badge. The add form SHALL open in a modal from the toolbar or the active empty-state action. Local reads SHALL NOT fetch employer data, start indexing, or change board state; the independent app-visit refresh request SHALL NOT delay those reads. Empty, loading, and failure states SHALL be distinguishable.
 
 #### Scenario: Active and archived views
@@ -144,7 +152,6 @@ The system SHALL provide board management at `/boards` with working navigation f
 - **AND** its saved name/source and retained jobs are not replaced by a loading screen or fabricated result
 
 ### Requirement: Rename company labels without changing source identity
-
 The system SHALL let users change an active board's company display name by editing its title position with the same name validation as creation. The editor SHALL support explicit save and cancel, Enter to save, and Escape to cancel, retaining failed drafts and restoring focus after editing. Archived cards SHALL NOT expose rename controls. Renaming SHALL preserve the internal identifier, canonical source, archive state, and creation history. Changing the provider, board key, or source URL of a saved record SHALL NOT be supported.
 
 #### Scenario: Rename a board
@@ -173,7 +180,6 @@ The system SHALL let users change an active board's company display name by edit
 - **AND** the confirmed stored name and source remain intact
 
 ### Requirement: Reversible archive and restore
-
 The system SHALL archive and restore boards through explicit, idempotent state changes. Archival SHALL remove a board from the active list, hide its postings from Open discovery, cancel or invalidate unfinished refreshes, and preserve its identifier, source, name, creation history, and indexed data. Restoration SHALL reactivate that same record and expose its retained current postings. Neither action SHALL delete data, mark employer postings unavailable, fetch jobs, or start refresh work. A refresh started before archival SHALL NOT commit after an intervening archive/restore transition. Hard deletion SHALL NOT be exposed.
 
 #### Scenario: Archive a board
@@ -202,7 +208,6 @@ The system SHALL archive and restore boards through explicit, idempotent state c
 - **AND** restoring the board before the old response returns does not make that old work valid again
 
 ### Requirement: Explicit safe local mutations
-
 The local API SHALL validate input, record identifiers, JSON content type, and request origin/host boundaries before changing stored state. Cross-origin or non-loopback mutation requests SHALL be rejected. GET requests SHALL be read-only. A request for an unknown board SHALL return a not-found result, and any failed mutation SHALL preserve previously stored records. Errors SHALL NOT expose stack traces, filesystem paths, or private configuration.
 
 #### Scenario: Rejected caller or malformed mutation
@@ -217,7 +222,6 @@ The local API SHALL validate input, record identifiers, JSON content type, and r
 - **AND** no replacement record is created
 
 ### Requirement: Accessible management and recoverable feedback
-
 Forms, view controls, and per-board actions SHALL have accessible names, keyboard operation, associated validation errors, and visible focus. The screen SHALL remain usable at a 320 CSS pixel viewport without page-level horizontal scrolling. Source links SHALL open the canonical HTTPS board safely. Pending mutations SHALL prevent repeat submission; failed operations SHALL retain entered values and the last confirmed board data, and successful operations SHALL refresh affected local list data.
 
 #### Scenario: Keyboard registration and correction
@@ -231,3 +235,18 @@ Forms, view controls, and per-board actions SHALL have accessible names, keyboar
 - **WHEN** saving or changing a board fails
 - **THEN** the UI does not pretend the change succeeded or discard the last confirmed list
 - **AND** the user can retry without re-entering valid values
+
+### Requirement: Shareable board views
+The system SHALL preserve the selected board view in the URL. `/boards?view=archived` SHALL select Archived in the initial response and after reload or history navigation. An absent or unsupported view SHALL select Active. Selecting a view SHALL NOT mutate stored boards.
+
+#### Scenario: Revisit the archive
+
+- **WHEN** a user opens, reloads or returns to `/boards?view=archived`
+- **THEN** Archived is selected and the archived boards are shown after the local query completes
+- **AND** the selected archived Status condition is identified accessibly
+
+#### Scenario: Return to the default view
+
+- **WHEN** the user selects Active
+- **THEN** Active is selected and the default view value is removed from the URL
+- **AND** existing creation, duplicate-location and refresh actions can still select their appropriate view

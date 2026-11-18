@@ -17,7 +17,7 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 export function JobFacts({ job }: { job: JobDetail }) {
   const compensation = job.compensation === null ? null : compensationSummary(job.compensation);
   return (
-    <dl className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+    <dl className="grid gap-x-8 gap-y-5 @sm/posting:grid-cols-2 @2xl/posting:grid-cols-3">
       {job.locations.length ? (
         <Fact label={job.locations.length === 1 ? "Location" : "Locations"}>
           {job.locations.map((location) => location.text).join(", ")}

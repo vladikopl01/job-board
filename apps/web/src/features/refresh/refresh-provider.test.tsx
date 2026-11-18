@@ -7,10 +7,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NuqsTestingAdapter } from "nuqs/adapters/testing";
 import { StrictMode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
+import { chooseFilter } from "../../../test/collection-controls";
 
 import { QueryProvider } from "@/components/query-provider";
 import { BoardsClient } from "@/features/boards/boards-client";
 import { JobsClient } from "@/features/jobs/jobs-client";
+import { UnreadCount } from "@/features/jobs/unread-count";
 
 import {
   boardId,
@@ -19,7 +21,7 @@ import {
   listFixture,
   postingId,
 } from "../../../test/job-fixtures";
-import { RefreshProvider } from "./refresh-provider";
+import { RefreshNotice, RefreshProvider } from "./refresh-provider";
 import { refreshesQueryKey } from "./queries";
 
 afterEach(() => {
@@ -47,6 +49,7 @@ it("requests one refresh per document under Strict Mode while preserving local j
         <NuqsTestingAdapter>
           <QueryProvider>
             <RefreshProvider>
+              <RefreshNotice />
               <span>{route}</span>
               <JobsClient />
             </RefreshProvider>
@@ -76,6 +79,7 @@ it("requests one refresh per document under Strict Mode while preserving local j
 it("polls pending tasks and updates board feedback without hiding confirmed cards", async () => {
   let finished = false;
   const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+    if (input === "/api/jobs/unread-count") return Response.json({ unreadCount: finished ? 3 : 1 });
     if (input === "/api/boards")
       return Response.json({
         boards: [
@@ -129,28 +133,29 @@ it("polls pending tasks and updates board feedback without hiding confirmed card
   });
   vi.stubGlobal("fetch", fetcher);
   render(
-    <NuqsTestingAdapter hasMemory>
+    <NuqsTestingAdapter hasMemory searchParams="?layout=list">
       <QueryProvider>
         <RefreshProvider>
+          <UnreadCount />
           <BoardsClient />
         </RefreshProvider>
       </QueryProvider>
     </NuqsTestingAdapter>,
   );
   await screen.findByRole("heading", { name: "Example" });
-  const activity = await screen.findByText("Refreshing boards…");
-  expect(screen.getByRole("tablist", { name: "Board views" }).parentElement).toContainElement(
-    activity,
-  );
-  expect(activity.querySelector('[data-slot="spinner"]')).toBeInTheDocument();
+  expect(await screen.findByLabelText("1 unread job")).toBeInTheDocument();
+  const refresh = screen.getByRole("button", { name: "Refresh" });
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Refreshing… Example" })).toBeDisabled(),
+    expect(screen.getByRole("button", { name: "Refresh Example" })).toBeDisabled(),
   );
+  expect(refresh).toHaveAttribute("aria-busy", "true");
+  expect(refresh.querySelector("svg")).toHaveClass("motion-safe:animate-spin");
   expect(screen.getByText("Example: Refreshing…")).toHaveAttribute("aria-live", "polite");
   await act(async () => {
     finished = true;
   });
   await screen.findByText("Up to date · 3 cached", {}, { timeout: 3000 });
+  expect(await screen.findByLabelText("3 unread jobs")).toBeInTheDocument();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Refresh Example" })).toBeEnabled(),
   );
@@ -223,7 +228,7 @@ it("keeps single-board progress in its button after a batch and reveals an uncha
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   render(
-    <NuqsTestingAdapter hasMemory>
+    <NuqsTestingAdapter hasMemory searchParams="?layout=list">
       <QueryClientProvider client={client}>
         <RefreshProvider>
           <BoardsClient />
@@ -232,7 +237,7 @@ it("keeps single-board progress in its button after a batch and reveals an uncha
     </NuqsTestingAdapter>,
   );
   const firstResult = await screen.findByText("Up to date · 3 cached");
-  await waitFor(() => expect(screen.getByRole("button", { name: "Refresh all" })).toBeEnabled());
+  await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled());
   const refresh = screen.getByRole("button", { name: "Refresh Example" });
   await userEvent.setup().click(refresh);
   await waitFor(() =>
@@ -243,7 +248,8 @@ it("keeps single-board progress in its button after a batch and reveals an uncha
   expect(refresh).toBeDisabled();
   expect(firstResult).toBeInTheDocument();
   expect(screen.queryByText("Refreshing boards…")).not.toBeInTheDocument();
-  expect(screen.getByText("Refreshing…").closest("button")).toBe(refresh);
+  expect(refresh).toHaveAttribute("aria-busy", "true");
+  expect(refresh.querySelector("svg")).toHaveClass("motion-safe:animate-spin");
   await act(async () => {
     finished = true;
     await client.invalidateQueries({ queryKey: refreshesQueryKey });
@@ -328,7 +334,7 @@ it.each(["failed", "deferred"] as const)(
     );
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <NuqsTestingAdapter hasMemory>
+      <NuqsTestingAdapter hasMemory searchParams="?layout=list">
         <QueryClientProvider client={client}>
           <RefreshProvider>
             <BoardsClient />
@@ -338,11 +344,11 @@ it.each(["failed", "deferred"] as const)(
     );
     const user = userEvent.setup();
     await screen.findByRole("heading", { name: "Example" });
-    await user.click(screen.getByRole("tab", { name: "Archived" }));
+    await chooseFilter(user, "Status", "Archived");
     await screen.findByRole("heading", { name: "Archived company" });
-    await user.click(screen.getByRole("button", { name: "Refresh all" }));
+    await user.click(screen.getByRole("button", { name: "Refresh" }));
     if (outcome === "failed") {
-      await screen.findByText("Refreshing boards…");
+      await screen.findByRole("button", { name: "Refresh", busy: true });
       await act(async () => {
         finished = true;
         await client.invalidateQueries({ queryKey: refreshesQueryKey });
@@ -363,7 +369,7 @@ it.each(["failed", "deferred"] as const)(
       document.querySelector(`time[datetime="${retryAt}"]`)?.getAttribute("datetime") ?? null,
     ).toBe(outcome === "deferred" ? retryAt : null);
     expect(screen.queryByText("Refreshing boards…")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh all" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
     expect(screen.getByRole("heading", { name: "Archived company" })).toBeInTheDocument();
     if (outcome === "failed") {
       await user.click(screen.getByRole("button", { name: "View active boards" }));

@@ -1,26 +1,19 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { cn } from "cn";
-import { ExternalLinkIcon, RotateCcwIcon } from "lucide-react";
-import Link from "next/link";
+import { ExternalLinkIcon, RotateCcwIcon, SendIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { InfoTip } from "@/components/info-tip";
 import { NotFoundContent } from "@/components/not-found-content";
 import { RefreshedText } from "@/components/refreshed-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { AppBadge } from "@/components/app-badge";
+import { ProviderBadge } from "@/features/boards/provider-badge";
+import { CompanyLink } from "./company-link";
+import { JobAvailabilityBadge } from "./job-badges";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import {
   Dialog,
@@ -36,9 +29,20 @@ import {
 import { IndexApiError, indexErrorMessage, jsonMutation, localRequest } from "./api";
 import { JobFacts } from "./job-facts";
 import { JobDetailsSkeleton } from "./jobs-skeleton";
-import { jobAvailability, jobResponseSchema, replacementResponseSchema } from "./schemas";
+import { useJobVisit } from "./job-visit-provider";
+import { useReadStatePending, useSetReadState } from "./queries";
+import { ReadStateButton, ReadStateError } from "./read-state-controls";
+import { jobResponseSchema, replacementResponseSchema } from "./schemas";
 
-export function JobDetailsClient({ id }: { id: string }) {
+export function JobDetailsClient({
+  id,
+  presentation = "page",
+}: {
+  id: string;
+  presentation?: "page" | "reader";
+}) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  const Heading = presentation === "reader" ? "h2" : "h1";
   const client = useQueryClient();
   const router = useRouter();
   const [confirming, setConfirming] = useState(false);
@@ -56,30 +60,29 @@ export function JobDetailsClient({ id }: { id: string }) {
     },
   });
   const job = query.data?.posting;
+  const visit = useJobVisit();
+  const readState = useSetReadState();
+  const readPending = useReadStatePending();
+  const { mutate: markRead } = readState;
+  const loadedId = job?.id;
+  useEffect(() => {
+    if (loadedId && visit.consume(loadedId)) markRead({ ids: [loadedId], read: true });
+  }, [loadedId, visit, markRead]);
+  useEffect(() => {
+    const element = heading.current;
+    if (
+      loadedId &&
+      presentation === "reader" &&
+      element?.closest("[data-job-reader]")?.contains(document.activeElement)
+    )
+      element.focus();
+  }, [loadedId, presentation]);
   const notFound =
     query.error instanceof IndexApiError &&
     (query.error.code === "NOT_FOUND" || query.error.code === "INVALID_INPUT");
 
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <Breadcrumb>
-        <BreadcrumbList>
-          <BreadcrumbItem>
-            <BreadcrumbLink
-              render={<Link href="/jobs" />}
-              className="rounded-sm outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
-            >
-              Jobs
-            </BreadcrumbLink>
-          </BreadcrumbItem>
-          <BreadcrumbSeparator />
-          <BreadcrumbItem className="min-w-0">
-            <BreadcrumbPage className="wrap-anywhere">
-              {job?.title ?? (notFound ? "Posting not found" : "Posting")}
-            </BreadcrumbPage>
-          </BreadcrumbItem>
-        </BreadcrumbList>
-      </Breadcrumb>
+    <div className="@container/posting mx-auto flex w-full min-w-0 max-w-[72ch] flex-col gap-6 py-2 sm:py-4">
       {query.isPending ? <JobDetailsSkeleton /> : null}
       {notFound ? (
         <NotFoundContent
@@ -101,36 +104,46 @@ export function JobDetailsClient({ id }: { id: string }) {
       ) : null}
       {job ? (
         <>
-          <header className="flex min-w-0 flex-col gap-5">
-            <h1 className="text-3xl leading-[1.4] font-semibold tracking-tight text-balance wrap-anywhere sm:text-4xl">
+          <header data-reader-stage="heading" className="flex min-w-0 flex-col gap-5">
+            <Heading
+              ref={heading}
+              tabIndex={-1}
+              className={
+                presentation === "reader"
+                  ? "rounded-sm text-2xl leading-snug font-semibold tracking-tight wrap-anywhere outline-ring focus-visible:outline-2 focus-visible:outline-offset-4"
+                  : "text-3xl leading-tight font-semibold tracking-tight text-balance wrap-anywhere sm:text-4xl"
+              }
+            >
               {job.title}
-            </h1>
+            </Heading>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-2">
               <p className="min-w-0 text-lg leading-7 wrap-anywhere">
                 <span className="text-muted-foreground">at </span>
-                <Link
-                  href={`/boards/${job.boardId}`}
-                  prefetch={false}
-                  className="rounded-sm underline underline-offset-4 outline-ring hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4"
-                >
-                  {job.company}
-                </Link>
+                <CompanyLink job={job} />
               </p>
-              <Badge variant="outline">
-                {job.provider === "ashby"
-                  ? "Ashby"
-                  : job.sourceHost === "jobs.eu.lever.co"
-                    ? "Lever · EU"
-                    : "Lever"}
-              </Badge>
-              <Badge variant="secondary">{jobAvailability(job)}</Badge>
+              <ProviderBadge provider={job.provider} sourceHost={job.sourceHost} />
+              <JobAvailabilityBadge job={job} />
               {job.boardArchivedAt && job.unavailableReason ? (
-                <Badge variant="outline">Board archived</Badge>
+                <AppBadge variant="muted">Board archived</AppBadge>
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
+              <ReadStateButton
+                readAt={job.readAt}
+                disabled={readPending}
+                onClick={() => readState.mutate({ ids: [job.id], read: job.readAt === null })}
+              />
               <a
-                className={cn(buttonVariants({ variant: "outline" }))}
+                className={buttonVariants()}
+                href={job.applyUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <SendIcon aria-hidden="true" data-icon="inline-start" />
+                Apply<span className="sr-only"> (opens in a new tab)</span>
+              </a>
+              <a
+                className={buttonVariants({ variant: "outline" })}
                 href={job.jobUrl}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -138,35 +151,42 @@ export function JobDetailsClient({ id }: { id: string }) {
                 <ExternalLinkIcon aria-hidden="true" data-icon="inline-start" />
                 Employer posting<span className="sr-only"> (opens in a new tab)</span>
               </a>
-              <a
-                className={cn(buttonVariants())}
-                href={job.applyUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <ExternalLinkIcon aria-hidden="true" data-icon="inline-start" />
-                Apply<span className="sr-only"> (opens in a new tab)</span>
-              </a>
             </div>
           </header>
+          {readState.isError ? (
+            <ReadStateError
+              error={readState.error}
+              disabled={readPending}
+              onRetry={() => {
+                if (readState.variables) readState.mutate(readState.variables);
+              }}
+            />
+          ) : null}
           <Separator />
-          <JobFacts job={job} />
+          <div data-reader-stage="facts">
+            <JobFacts job={job} />
+          </div>
           <Separator />
           {job.descriptionHtml ? (
             // This fragment is sanitized by the local API; original provider HTML stays in SQLite.
             <section
               aria-label="Job description"
+              data-reader-stage="description"
               className="job-description"
               dangerouslySetInnerHTML={{ __html: job.descriptionHtml }}
             />
           ) : (
-            <section aria-label="Job description" className="job-description">
+            <section
+              aria-label="Job description"
+              data-reader-stage="description"
+              className="job-description"
+            >
               <p className="whitespace-pre-wrap">
                 {job.descriptionPlain || "No description was provided."}
               </p>
             </section>
           )}
-          <p className="text-sm text-muted-foreground tabular-nums">
+          <p data-reader-stage="description" className="text-sm text-muted-foreground tabular-nums">
             Last seen{" "}
             <time dateTime={job.lastSeenAt}>
               <RefreshedText revision={job.lastSeenAt}>
@@ -175,7 +195,7 @@ export function JobDetailsClient({ id }: { id: string }) {
             </time>
           </p>
           {!job.unavailableAt && !job.boardArchivedAt ? (
-            <div className="flex items-center gap-2">
+            <div data-reader-stage="description" className="flex items-center gap-2">
               <Dialog
                 open={confirming}
                 onOpenChange={(open, details) => {

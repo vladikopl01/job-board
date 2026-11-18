@@ -12,9 +12,15 @@ import { POST as manualRefresh } from "../src/app/api/boards/[id]/refresh/route"
 import { GET as details } from "../src/app/api/jobs/[id]/route";
 import { POST as replace } from "../src/app/api/jobs/[id]/replace/route";
 import { GET as jobs } from "../src/app/api/jobs/route";
+import { POST as readState } from "../src/app/api/jobs/read-state/route";
+import { GET as countUnread } from "../src/app/api/jobs/unread-count/route";
 import { GET as status, POST as visit } from "../src/app/api/refreshes/route";
 import { boardResponseSchema } from "../src/features/boards/schemas";
-import { jobResponseSchema, replacementResponseSchema } from "../src/features/jobs/schemas";
+import {
+  jobResponseSchema,
+  replacementResponseSchema,
+  readStateResponseSchema,
+} from "../src/features/jobs/schemas";
 import { reconcileSnapshot } from "../src/features/jobs/server/reconcile";
 import type { Database } from "../src/features/refresh/server/store";
 import { beginRefresh, indexingStorage, initialTime } from "./indexing";
@@ -54,6 +60,155 @@ function storage() {
   getDatabase.mockReturnValue(fixture.db);
   return fixture;
 }
+
+it.each(["country", "region", "department"])(
+  "rejects an invalid %s value before opening storage",
+  (id) => {
+    const filters = JSON.stringify([
+      {
+        id,
+        filterId: "invalid-discovery",
+        variant: "select",
+        operator: "eq",
+        value: "unsupported",
+      },
+    ]);
+    const query = new URLSearchParams({ filters });
+    expect(jobs(new Request(`http://localhost:3000/api/jobs?${query}`)).status).toBe(400);
+    expect(getDatabase).not.toHaveBeenCalled();
+    expect(providerFetch).not.toHaveBeenCalled();
+    expect(after).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  ['{"ids":[],"read":true}', {}],
+  ['{"ids":["bad"],"read":true}', {}],
+  [JSON.stringify({ ids: Array.from({ length: 51 }, () => crypto.randomUUID()), read: true }), {}],
+  [
+    JSON.stringify({
+      ids: ["11111111-1111-4111-8111-111111111111", "11111111-1111-4111-8111-111111111111"],
+      read: true,
+    }),
+    {},
+  ],
+  [JSON.stringify({ ids: [crypto.randomUUID()], read: "yes" }), {}],
+  [JSON.stringify({ ids: [crypto.randomUUID()], read: true, all: true }), {}],
+  ["{", {}],
+  ["{}", { origin: "https://attacker.test" }],
+  ["{}", { "content-type": "text/plain" }],
+])("rejects unsafe or unbounded read changes before opening storage: %s", async (body, headers) => {
+  const result = await readState(request("/api/jobs/read-state", body, headers));
+  expect(result.status).toBeGreaterThanOrEqual(400);
+  expect(getDatabase).not.toHaveBeenCalled();
+  expect(providerFetch).not.toHaveBeenCalled();
+  expect(after).not.toHaveBeenCalled();
+});
+
+it("keeps job GETs inert and only marks the concrete selected posting through the guarded POST", async () => {
+  const { db, addBoard } = storage();
+  reconcileSnapshot({
+    db,
+    claim: beginRefresh(db, addBoard().id),
+    snapshot: { postings: [normalizedJob("one"), normalizedJob("two")] },
+    now: initialTime,
+  });
+  const posting = db.select().from(postings).get();
+  if (!posting) throw new Error("Missing fixture posting.");
+  expect(await countUnread().json()).toEqual({ unreadCount: 2 });
+  expect(await jobs(new Request("http://localhost:3000/api/jobs")).json()).toMatchObject({
+    total: 2,
+    jobs: expect.arrayContaining([
+      expect.objectContaining({ id: posting.id, applyUrl: posting.applyUrl }),
+    ]),
+  });
+  await details(
+    new Request(`http://localhost:3000/api/jobs/${posting.id}`, {
+      headers: { "next-router-prefetch": "1" },
+    }),
+    params(posting.id),
+  );
+  expect(
+    db
+      .select()
+      .from(postings)
+      .all()
+      .every((job) => job.readAt === null),
+  ).toBe(true);
+  const result = await readState(
+    request("/api/jobs/read-state", JSON.stringify({ ids: [posting.id], read: true })),
+  );
+  expect(result.status).toBe(200);
+  expect(readStateResponseSchema.parse(await result.json()).postings).toEqual([
+    { id: posting.id, readAt: expect.any(String) },
+  ]);
+  expect(await countUnread().json()).toEqual({ unreadCount: 1 });
+  expect(await jobs(new Request("http://localhost:3000/api/jobs")).json()).toMatchObject({
+    total: 1,
+  });
+  expect(await jobs(new Request("http://localhost:3000/api/jobs?view=open")).json()).toMatchObject({
+    total: 2,
+  });
+  expect(
+    await jobs(new Request("http://localhost:3000/api/jobs?view=open&readStatus=read")).json(),
+  ).toMatchObject({
+    total: 1,
+    jobs: [{ id: posting.id }],
+  });
+  expect(
+    await jobs(new Request("http://localhost:3000/api/jobs?view=open&readStatus=unread")).json(),
+  ).toMatchObject({
+    total: 1,
+    jobs: [{ readAt: null }],
+  });
+  const missing = await readState(
+    request(
+      "/api/jobs/read-state",
+      JSON.stringify({ ids: [posting.id, crypto.randomUUID()], read: false }),
+    ),
+  );
+  expect(missing.status).toBe(404);
+  expect(await countUnread().json()).toEqual({ unreadCount: 1 });
+  expect(providerFetch).not.toHaveBeenCalled();
+  expect(after).not.toHaveBeenCalled();
+});
+
+it("rejects an unknown read filter before opening storage", async () => {
+  const result = jobs(new Request("http://localhost:3000/api/jobs?view=open&readStatus=unknown"));
+  expect(result.status).toBe(400);
+  expect(getDatabase).not.toHaveBeenCalled();
+  expect(providerFetch).not.toHaveBeenCalled();
+  expect(after).not.toHaveBeenCalled();
+});
+
+it.each(["boardId=invalid", `q=${"x".repeat(201)}`, "pageSize=11", "pageSize=51"])(
+  "validates discovery before opening storage: %s",
+  (query) => {
+    const result = jobs(new Request(`http://localhost:3000/api/jobs?${query}`));
+    expect(result.status).toBe(400);
+    expect(getDatabase).not.toHaveBeenCalled();
+    expect(providerFetch).not.toHaveBeenCalled();
+  },
+);
+
+it("reports an unmigrated index for unread queries and mutations without scheduling provider work", async () => {
+  getDatabase.mockImplementation(() => {
+    throw new Error("no such column: postings.read_at");
+  });
+  const responses = [
+    countUnread(),
+    jobs(new Request("http://localhost:3000/api/jobs")),
+    await readState(
+      request("/api/jobs/read-state", JSON.stringify({ ids: [crypto.randomUUID()], read: true })),
+    ),
+  ];
+  for (const response of responses) {
+    expect(response.status).toBe(500);
+    expect(await response.json()).toMatchObject({ error: { code: "STORAGE_NOT_READY" } });
+  }
+  expect(providerFetch).not.toHaveBeenCalled();
+  expect(after).not.toHaveBeenCalled();
+});
 
 it.each([
   { provider: "Ashby", url: "https://jobs.ashbyhq.com/example", requests: 1 },

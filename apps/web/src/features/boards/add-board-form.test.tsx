@@ -60,6 +60,49 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it.each(["empty", "selected draft"])(
+  "cleans a pasted encoded board URL immediately (%s input) and saves the clean source",
+  async (draft) => {
+    const canonicalUrl = "https://jobs.ashbyhq.com/Hyperliquid%20Labs";
+    const board = {
+      ...notion,
+      displayName: "Hyperliquid Labs",
+      boardKey: "Hyperliquid Labs",
+      canonicalUrl,
+    } satisfies Board;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) =>
+      input === "/api/boards/name-suggestion"
+        ? json({ displayName: board.displayName, source: "metadata" })
+        : json({ board }, 201),
+    );
+    vi.stubGlobal("fetch", fetch);
+    const { user, onSaved } = renderForm();
+    const url = screen.getByLabelText<HTMLInputElement>("Board URL");
+    await user.click(url);
+    if (draft === "selected draft") {
+      await user.paste(notionUrl);
+      url.select();
+    }
+    await user.paste(
+      ` https://JOBS.ASHBYHQ.COM:443/%48yperliquid%20Labs/?utm_source=test&cookie=${"a".repeat(2500)}#jobs `,
+    );
+    expect(url).toHaveValue(canonicalUrl);
+    expect(screen.getByLabelText("Company name (optional)")).toHaveAttribute(
+      "placeholder",
+      board.displayName,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Save board" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(board, "saved"));
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/boards",
+      expect.objectContaining({
+        body: JSON.stringify({ displayName: board.displayName, url: canonicalUrl }),
+      }),
+    );
+  },
+);
+
 it("clears a failed restore when editing the draft for another board", async () => {
   const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
     if (init?.method === "PATCH") {
@@ -300,6 +343,9 @@ it("saves without waiting for metadata and does not refill the reset form afterw
     response.complete(json({ displayName: "Late metadata", source: "metadata" })),
   );
   expect(screen.getByLabelText("Company name (optional)")).toHaveValue("");
-  expect(screen.getByLabelText("Company name (optional)")).toHaveAttribute("placeholder", "");
+  expect(screen.getByLabelText("Company name (optional)")).toHaveAttribute(
+    "placeholder",
+    "e.g. Ramp",
+  );
   expect(screen.getByLabelText("Board URL")).toHaveValue("");
 });

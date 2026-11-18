@@ -23,7 +23,7 @@ export function RefreshedText({
     )
       return;
 
-    const animation = element.animate([{ opacity: 1 }, { opacity: 0.55 }, { opacity: 1 }], {
+    const animation = element.animate([{ opacity: 1 }, { opacity: 0.85 }, { opacity: 1 }], {
       duration: 180,
       easing: "cubic-bezier(0.23, 1, 0.32, 1)",
     });

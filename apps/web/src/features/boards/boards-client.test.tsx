@@ -5,8 +5,14 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import userEvent from "@testing-library/user-event";
 import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { afterEach, expect, it, vi } from "vitest";
+import {
+  chooseFilter,
+  chooseLayout,
+  setupCollectionControls,
+} from "../../../test/collection-controls";
 
 import { QueryProvider } from "@/components/query-provider";
+import { UnreadCount } from "@/features/jobs/unread-count";
 
 import { BoardsClient } from "./boards-client";
 import type { Board } from "./schemas";
@@ -33,6 +39,7 @@ function json(body: unknown, status = 200) {
 }
 
 function stubBoardApi(fetch: typeof globalThis.fetch) {
+  setupCollectionControls();
   vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) =>
     input === "/api/boards/name-suggestion"
       ? Promise.reject(new TypeError("Company metadata is unavailable in this scenario."))
@@ -40,7 +47,10 @@ function stubBoardApi(fetch: typeof globalThis.fetch) {
   );
 }
 
-function renderBoards(searchParams = "", onUrlUpdate?: (event: UrlUpdateEvent) => void) {
+function renderBoards(
+  searchParams = "?layout=list",
+  onUrlUpdate?: (event: UrlUpdateEvent) => void,
+) {
   return render(
     <NuqsTestingAdapter
       hasMemory
@@ -56,30 +66,127 @@ function renderBoards(searchParams = "", onUrlUpdate?: (event: UrlUpdateEvent) =
 
 afterEach(() => {
   cleanup();
+  localStorage.clear();
   vi.unstubAllGlobals();
 });
 
-it("restores the archived view from the URL and keeps tab changes bookmarkable", async () => {
+it.each(["", "?layout=unknown"])("defaults Boards to Table for URL %j", async (searchParams) => {
+  stubBoardApi(vi.fn<typeof fetch>(async () => json({ boards: [ramp] })));
+  renderBoards(searchParams);
+  const table = await screen.findByRole("table", { name: "Active boards" });
+  expect(screen.getByRole("button", { name: "Board layouts: Table" })).toHaveTextContent("Table");
+  expect(within(table).getByRole("link", { name: "Ramp" })).toHaveAttribute(
+    "href",
+    `/boards/${ramp.id}`,
+  );
+});
+
+it("restores the archived filter from the URL and keeps changes bookmarkable", async () => {
   const archived = { ...ramp, archivedAt: "2026-10-27T11:00:00.000Z" };
   const updates = vi.fn<(event: UrlUpdateEvent) => void>();
   stubBoardApi(vi.fn<typeof globalThis.fetch>(async () => json({ boards: [archived] })));
   renderBoards("?view=archived", updates);
   const user = userEvent.setup();
 
-  expect(screen.getByRole("tab", { name: "Archived" })).toHaveAttribute("aria-selected", "true");
+  expect(screen.getByRole("button", { name: /^Filter(?: \d+)?$/u })).toBeEnabled();
   expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
-  await user.click(screen.getByRole("tab", { name: "Active" }));
+  await chooseFilter(user, "Status", "Active");
   expect(await screen.findByText("No active boards yet")).toBeInTheDocument();
   await waitFor(() =>
     expect(updates).toHaveBeenLastCalledWith(expect.objectContaining({ queryString: "" })),
   );
-  await user.click(screen.getByRole("tab", { name: "Archived" }));
+  await chooseFilter(user, "Status", "Archived");
   expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
   await waitFor(() =>
-    expect(updates).toHaveBeenLastCalledWith(
-      expect.objectContaining({ queryString: "?view=archived" }),
-    ),
+    expect(updates.mock.lastCall?.[0].searchParams.get("filters")).toContain('"value":"archived"'),
   );
+});
+
+it("shows the legacy provider URL value in advanced controls", async () => {
+  stubBoardApi(vi.fn<typeof fetch>(async () => json({ boards: [ramp] })));
+  renderBoards("?provider=ashby");
+  await screen.findByRole("heading", { name: "Ramp" });
+  await userEvent.setup().click(screen.getByRole("button", { name: "Filter 2" }));
+  expect(screen.getByRole("button", { name: "Provider filter value" })).toHaveTextContent("Ashby");
+});
+
+it("uses Status as a removable and disableable condition in the normal filter builder", async () => {
+  const archived = {
+    ...ramp,
+    id: crypto.randomUUID(),
+    displayName: "Archived company",
+    archivedAt: "2026-10-27T11:00:00.000Z",
+  };
+  stubBoardApi(vi.fn<typeof fetch>(async () => json({ boards: [ramp, archived] })));
+  renderBoards();
+  const user = userEvent.setup();
+  await screen.findByRole("heading", { name: "Ramp" });
+  await user.click(screen.getByRole("button", { name: "Filter 1" }));
+  expect(screen.getByRole("button", { name: "Status filter value" })).toHaveTextContent("Active");
+  await user.click(screen.getByRole("button", { name: "Disable Status filter" }));
+  expect(await screen.findByRole("heading", { name: "Archived company" })).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Enable Status filter" }));
+  expect(screen.queryByRole("heading", { name: "Archived company" })).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Remove Status filter" }));
+  expect(await screen.findByRole("heading", { name: "Archived company" })).toBeInTheDocument();
+  expect(screen.getByRole("list", { name: "Boards" })).toBeInTheDocument();
+});
+
+it("filters before pagination and shares its URL scope across List, Cards, and Table", async () => {
+  const boards: Board[] = Array.from({ length: 30 }, (_, index) => {
+    const number = index + 1;
+    const provider = number % 2 === 0 ? "lever" : "ashby";
+    return {
+      ...ramp,
+      id: `20000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
+      boardKey: `company-${number}`,
+      displayName: `Company ${number}`,
+      provider,
+      sourceHost: provider === "lever" ? "jobs.lever.co" : "jobs.ashbyhq.com",
+      canonicalUrl:
+        provider === "lever"
+          ? `https://jobs.lever.co/company-${number}`
+          : `https://jobs.ashbyhq.com/company-${number}`,
+    };
+  });
+  const fetcher = vi.fn<typeof fetch>(async () => json({ boards }));
+  stubBoardApi(fetcher);
+  const updates = vi.fn<(event: UrlUpdateEvent) => void>();
+  renderBoards("?page=2&pageSize=10", updates);
+  await screen.findByRole("heading", { name: "Company 11" });
+  expect(screen.queryByRole("heading", { name: "Company 1" })).not.toBeInTheDocument();
+  const user = userEvent.setup();
+  setupCollectionControls();
+  await user.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByRole("heading", { name: "Company 21" });
+  expect(screen.getByRole("region", { name: "Active boards" })).toHaveFocus();
+  expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+    block: "start",
+    behavior: "instant",
+  });
+  await chooseFilter(user, "Provider", "Lever");
+  await screen.findByRole("heading", { name: "Company 2" });
+  expect(screen.getByText(/1–10 of 15 boards/u)).toBeInTheDocument();
+  await user.type(screen.getByRole("searchbox", { name: "Search boards" }), "Company 2");
+  await screen.findByText(/1–6 of 6 boards/u);
+  expect(screen.getByRole("heading", { name: "Company 28" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Company 22" })).toBeInTheDocument();
+  expect(screen.queryByRole("heading", { name: "Company 21" })).not.toBeInTheDocument();
+  await chooseLayout(user, "Board", "Table");
+  expect(
+    within(screen.getByRole("table", { name: "Active boards" })).getAllByRole("row"),
+  ).toHaveLength(7);
+  expect(screen.getByRole("link", { name: "Company 22" })).toHaveAttribute(
+    "href",
+    `/boards/${boards[21]?.id}`,
+  );
+  await chooseLayout(user, "Board", "Cards");
+  expect(screen.getByRole("heading", { name: "Company 22" })).toBeInTheDocument();
+  expect(updates.mock.lastCall?.[0].searchParams.get("layout")).toBe("cards");
+  expect(updates.mock.lastCall?.[0].searchParams.get("q")).toBe("Company 2");
+  expect(updates.mock.lastCall?.[0].searchParams.get("filters")).toContain('"value":"lever"');
+  expect(updates.mock.lastCall?.[0].searchParams.has("page")).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
 it("shows card skeletons while the first local boards query is pending", async () => {
@@ -96,15 +203,15 @@ it("shows card skeletons while the first local boards query is pending", async (
     }),
   );
   const { container } = renderBoards();
-  expect(screen.getByRole("tab", { name: "Active" })).toBeEnabled();
-  expect(screen.getByRole("tab", { name: "Archived" })).toBeEnabled();
-  expect(screen.getByRole("button", { name: "Refresh all" })).toBeVisible();
-  const newBoard = screen.getByRole("button", { name: "New board" });
+  expect(screen.getByRole("button", { name: /^Filter(?: \d+)?$/u })).toBeEnabled();
+  expect(screen.getByRole("button", { name: /^Board layouts:/u })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Refresh" })).toBeVisible();
+  const newBoard = screen.getByRole("button", { name: "New" });
   expect(newBoard).toBeEnabled();
   expect(screen.getByRole("status", { name: "Loading boards" })).toHaveClass("sr-only");
   const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
   expect(skeletons.length).toBeGreaterThan(0);
-  const panel = screen.getByRole("tabpanel", { name: "Active" });
+  const panel = screen.getByRole("region", { name: "Active boards" });
   for (const skeleton of skeletons) expect(panel.contains(skeleton)).toBe(true);
   expect(screen.queryByText("No active boards yet")).not.toBeInTheDocument();
   await userEvent.setup().click(newBoard);
@@ -128,9 +235,9 @@ it("lets a keyboard user correct a URL and save a company without losing its nam
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.queryByLabelText("Board URL")).not.toBeInTheDocument();
   await user.tab();
-  expect(screen.getByRole("tab", { name: "Active" })).toHaveFocus();
-  await user.tab();
-  expect(screen.getByRole("button", { name: "New board" })).toHaveFocus();
+  expect(screen.getByRole("searchbox", { name: "Search boards" })).toHaveFocus();
+  for (let i = 0; i < 5; i++) await user.tab();
+  expect(screen.getByRole("button", { name: "New" })).toHaveFocus();
   await user.keyboard("{Enter}");
   await screen.findByRole("dialog", { name: "Add a company board" });
   await waitFor(() => expect(screen.getByLabelText("Board URL")).toHaveFocus());
@@ -164,7 +271,8 @@ it("lets a keyboard user correct a URL and save a company without losing its nam
     }),
   );
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  const source = screen.getByRole("link", { name: /jobs.ashbyhq.com\/ramp.*opens in a new tab/i });
+  const source = screen.getByRole("link", { name: "Open Ramp source (opens in a new tab)" });
+  expect(source).toHaveAttribute("href", ramp.canonicalUrl);
   expect(source).toHaveAttribute("target", "_blank");
   expect(source).toHaveAttribute("rel", "noopener noreferrer");
 });
@@ -181,11 +289,11 @@ it("opens creation from the empty list and restores focus when a draft is dismis
   await user.keyboard("{Escape}");
   await waitFor(() => expect(add).toHaveFocus());
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "New board" }));
+  await user.click(screen.getByRole("button", { name: "New" }));
   expect(screen.getByLabelText("Board URL")).toHaveValue("");
   expect(screen.getByLabelText("Company name (optional)")).toHaveValue("");
   await user.click(screen.getByRole("button", { name: "Close" }));
-  await waitFor(() => expect(screen.getByRole("button", { name: "New board" })).toHaveFocus());
+  await waitFor(() => expect(screen.getByRole("button", { name: "New" })).toHaveFocus());
 });
 
 it("requires an explicit restore when a submitted source is already archived", async () => {
@@ -232,7 +340,7 @@ it("requires an explicit restore when a submitted source is already archived", a
   expect(screen.queryByRole("button", { name: "Rename Ramp" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Restore Ramp" }));
   await screen.findByText("No archived boards");
-  await user.click(screen.getByRole("tab", { name: "Active" }));
+  await chooseFilter(user, "Status", "Active");
   expect(await screen.findByRole("heading", { name: "Ramp" })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Rename Ramp" })).toBeInTheDocument();
   expect(screen.queryByRole("heading", { name: "Another label" })).not.toBeInTheDocument();
@@ -272,7 +380,7 @@ it("retains entered values and confirmed boards when a save fails, then allows r
   const user = userEvent.setup();
   renderBoards();
   await screen.findByRole("heading", { name: "Ramp" });
-  await user.click(screen.getByRole("button", { name: "New board" }));
+  await user.click(screen.getByRole("button", { name: "New" }));
   await user.type(screen.getByLabelText("Company name (optional)"), "MoonPay");
   await user.click(screen.getByLabelText("Board URL"));
   await user.paste(moonpay.canonicalUrl);
@@ -326,6 +434,62 @@ it("retains a failed rename and keeps the saved name until a successful retry", 
   expect(screen.getByRole("button", { name: "Rename Ramp engineering" })).toHaveFocus();
 });
 
+it("returns focus to Status when a confirmed rename no longer matches the search", async () => {
+  let stored = { ...ramp, displayName: "Ramp engineering" };
+  stubBoardApi(
+    vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      if (init?.method === "PATCH") stored = { ...stored, displayName: "Ramp platform" };
+      return json(init?.method === "PATCH" ? { board: stored } : { boards: [stored] });
+    }),
+  );
+  renderBoards("?layout=list&q=engineering");
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "Rename Ramp engineering" }));
+  const name = screen.getByRole("textbox", { name: "Company name for Ramp engineering" });
+  await user.clear(name);
+  await user.type(name, "Ramp platform{Enter}");
+  await screen.findByRole("heading", { name: "No boards match these filters" });
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: /^Filter(?: \d+)?$/u })).toHaveFocus(),
+  );
+});
+
+it.each(["?layout=list", "?layout=list&q=engineering"])(
+  "keeps another live control focused when a pending rename completes (%s)",
+  async (searchParams) => {
+    let stored = { ...ramp, displayName: "Ramp engineering" };
+    let release: () => void = () => {
+      throw new Error("Rename response is not initialized.");
+    };
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    stubBoardApi(
+      vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+        if (init?.method === "PATCH") {
+          await pending;
+          stored = { ...stored, displayName: "Ramp platform" };
+          return json({ board: stored });
+        }
+        return json({ boards: [stored] });
+      }),
+    );
+    renderBoards(searchParams);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Rename Ramp engineering" }));
+    const name = screen.getByRole("textbox", { name: "Company name for Ramp engineering" });
+    await user.clear(name);
+    await user.type(name, "Ramp platform{Enter}");
+    const search = screen.getByRole("searchbox", { name: "Search boards" });
+    await user.click(search);
+    await act(async () => release());
+    await screen.findByRole("heading", {
+      name: searchParams.includes("q=") ? "No boards match these filters" : "Ramp platform",
+    });
+    expect(search).toHaveFocus();
+  },
+);
+
 it("cancels an inline title edit with Escape without writing the proposed name", async () => {
   const fetch = vi.fn<typeof globalThis.fetch>(async () => json({ boards: [ramp] }));
   stubBoardApi(fetch);
@@ -335,7 +499,7 @@ it("cancels an inline title edit with Escape without writing the proposed name",
   expect(company).toHaveAttribute("href", `/boards/${ramp.id}`);
   expect(company).not.toContainElement(screen.getByRole("button", { name: "Rename Ramp" }));
   expect(company).not.toContainElement(
-    screen.getByRole("link", { name: /jobs.ashbyhq.com\/ramp.*opens in a new tab/i }),
+    screen.getByRole("link", { name: "Open Ramp source (opens in a new tab)" }),
   );
   const rename = await screen.findByRole("button", { name: "Rename Ramp" });
   await user.click(rename);
@@ -351,7 +515,8 @@ it("cancels an inline title edit with Escape without writing the proposed name",
 it("preserves the confirmed list on a failed archive and moves the same board only after success", async () => {
   let stored: Board = ramp;
   let failed = false;
-  const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+  const fetch = vi.fn<typeof globalThis.fetch>(async (input, init) => {
+    if (input === "/api/jobs/unread-count") return json({ unreadCount: stored.archivedAt ? 0 : 2 });
     if (init?.method === "PATCH") {
       if (!failed) {
         failed = true;
@@ -360,25 +525,36 @@ it("preserves the confirmed list on a failed archive and moves the same board on
           500,
         );
       }
-      stored = { ...ramp, archivedAt: "2026-10-27T12:00:00.000Z" };
+      stored = { ...ramp, archivedAt: stored.archivedAt ? null : "2026-10-27T12:00:00.000Z" };
       return json({ board: stored });
     }
     return json({ boards: [stored] });
   });
   stubBoardApi(fetch);
   const user = userEvent.setup();
-  renderBoards();
+  render(
+    <NuqsTestingAdapter hasMemory searchParams="?layout=list">
+      <QueryProvider>
+        <UnreadCount />
+        <BoardsClient />
+      </QueryProvider>
+    </NuqsTestingAdapter>,
+  );
   await user.click(await screen.findByRole("button", { name: "Archive Ramp" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Couldn’t archive this board");
+  expect(screen.getByLabelText("2 unread jobs")).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Ramp" })).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Archive Ramp" }));
   await screen.findByText("No active boards yet");
-  expect(screen.getByRole("tab", { name: "Active" })).toHaveFocus();
-  await user.keyboard("{ArrowRight}{Enter}");
+  expect(await screen.findByLabelText("0 unread jobs")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Filter(?: \d+)?$/u })).toHaveFocus();
+  await chooseFilter(user, "Status", "Archived");
   const list = await screen.findByRole("list", { name: "Archived boards" });
   expect(within(list).getByRole("heading", { name: "Ramp" })).toBeInTheDocument();
   expect(within(list).getByRole("button", { name: "Restore Ramp" })).toBeInTheDocument();
   expect(within(list).queryByRole("button", { name: "Rename Ramp" })).not.toBeInTheDocument();
+  await user.click(within(list).getByRole("button", { name: "Restore Ramp" }));
+  expect(await screen.findByLabelText("2 unread jobs")).toBeInTheDocument();
 });
 
 it("distinguishes an initial load failure from an empty list and lets the user retry", async () => {
@@ -418,13 +594,14 @@ it("requests Refresh all once, shows toolbar activity and leaves New board avail
   const user = userEvent.setup();
   renderBoards();
   await screen.findByRole("heading", { name: "Ramp" });
-  const refresh = screen.getByRole("button", { name: "Refresh all" });
+  const refresh = screen.getByRole("button", { name: "Refresh" });
   await user.click(refresh);
   expect(refresh).toBeDisabled();
-  expect(screen.getByRole("button", { name: "New board" })).toBeEnabled();
-  const activity = screen.getByText("Refreshing boards…");
-  expect(screen.getByRole("tablist", { name: "Board views" }).parentElement).toContainElement(
-    activity,
+  expect(screen.getByRole("button", { name: "New" })).toBeEnabled();
+  expect(refresh).toHaveAttribute("aria-busy", "true");
+  expect(refresh.querySelector("svg")).toHaveClass("motion-safe:animate-spin");
+  expect(refresh.closest("[data-collection-toolbar]")).toContainElement(
+    screen.getByRole("button", { name: /^Board layouts:/u }),
   );
   await user.click(refresh);
   expect(fetch.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
@@ -456,7 +633,7 @@ it("blocks repeat submission and waits for a confirmed save before changing the 
   const user = userEvent.setup();
   renderBoards();
   await screen.findByText("No active boards yet");
-  await user.click(screen.getByRole("button", { name: "New board" }));
+  await user.click(screen.getByRole("button", { name: "New" }));
   await user.type(screen.getByLabelText("Company name (optional)"), "Ramp");
   await user.click(screen.getByLabelText("Board URL"));
   await user.paste(ramp.canonicalUrl);

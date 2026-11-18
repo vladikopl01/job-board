@@ -1,0 +1,1 @@
+ALTER TABLE `postings` ADD `read_at` text;

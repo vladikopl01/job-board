@@ -4,6 +4,7 @@ import Sqlite from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
 import * as schema from "./schema.ts";
+import { registerDiscoveryFunctions } from "./discovery.ts";
 
 export function openDatabase({
   filename,
@@ -20,6 +21,7 @@ export function openDatabase({
   const sqlite = new Sqlite(filename, { timeout: busyTimeoutMs });
 
   try {
+    registerDiscoveryFunctions(sqlite);
     sqlite.pragma("foreign_keys = ON");
     const journalMode: unknown = sqlite.pragma("journal_mode = WAL", { simple: true });
     if (journalMode !== "wal") {

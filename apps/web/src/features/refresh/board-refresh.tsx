@@ -1,9 +1,9 @@
 import { RefreshCwIcon } from "lucide-react";
+import { cn } from "cn";
 
 import { RefreshedText } from "@/components/refreshed-text";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { indexErrorMessage } from "@/features/jobs/api";
 
 import { useRefreshBoard } from "./queries";
@@ -57,12 +57,12 @@ export function BoardRefreshButton({
         aria-busy={busy}
         onClick={() => refresh.mutate(id)}
       >
-        {busy ? (
-          <Spinner aria-hidden="true" data-icon="inline-start" />
-        ) : (
-          <RefreshCwIcon aria-hidden="true" data-icon="inline-start" />
-        )}
-        {label} <span className="sr-only">{name}</span>
+        <RefreshCwIcon
+          aria-hidden="true"
+          data-icon="inline-start"
+          className={cn(busy && "motion-safe:animate-spin")}
+        />
+        Refresh <span className="sr-only">{name}</span>
       </Button>
       <output className="sr-only" aria-live="polite">
         {busy ? `${name}: ${label}` : ""}

@@ -6,6 +6,13 @@ export {
   type PostingLocation,
   type JsonValue,
 } from "./posting.ts";
+export {
+  countryOptions,
+  regionOptions,
+  departmentOptions,
+  geographyForLocations,
+  departmentsFor,
+} from "./discovery.ts";
 
 type BoardKey = {
   boardKey: string;
@@ -62,7 +69,12 @@ export function identifyBoardUrl(
 
   try {
     const boardKey = decodeURIComponent(encodedKey);
-    if (!/^[A-Za-z0-9._~-]+$/u.test(boardKey) || boardKey === "." || boardKey === "..") {
+    if (
+      !/^[A-Za-z0-9._~ -]+$/u.test(boardKey) ||
+      boardKey.trim() !== boardKey ||
+      boardKey === "." ||
+      boardKey === ".."
+    ) {
       return unsupportedUrl;
     }
 
@@ -72,15 +84,25 @@ export function identifyBoardUrl(
       return unsupportedUrl;
     }
 
+    const canonicalUrl = `https://${site.sourceHost}/${encodeURIComponent(boardKey)}`;
+    if (canonicalUrl.length > 2048) return unsupportedUrl;
+
     return {
       success: true,
       source: {
         ...site,
         boardKey,
-        canonicalUrl: `https://${site.sourceHost}/${boardKey}`,
+        canonicalUrl,
       },
     };
   } catch {
     return unsupportedUrl;
   }
+}
+
+export function cleanBoardUrl(input: string): string {
+  // Discard copied tracking data before applying the board-root length limit.
+  const root = input.trim().replace(/[?#].*$/su, "");
+  const identified = identifyBoardUrl(root);
+  return identified.success ? identified.source.canonicalUrl : input;
 }

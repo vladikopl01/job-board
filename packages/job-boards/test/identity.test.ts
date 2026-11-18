@@ -1,10 +1,23 @@
 import { describe, expect, it } from "vitest";
 
-import { identifyBoardUrl } from "../src/index.ts";
+import { cleanBoardUrl, identifyBoardUrl } from "../src/index.ts";
 
 describe("identifyBoardUrl", () => {
   it.each([
     ["https://jobs.ashbyhq.com/ramp", "ashby", "jobs.ashbyhq.com", "ramp"],
+    [
+      "https://jobs.ashbyhq.com/Hyperliquid%20Labs",
+      "ashby",
+      "jobs.ashbyhq.com",
+      "Hyperliquid Labs",
+    ],
+    [
+      "https://jobs.ashbyhq.com/%48yperliquid Labs/?utm_source=test#jobs",
+      "ashby",
+      "jobs.ashbyhq.com",
+      "Hyperliquid Labs",
+    ],
+    ["https://jobs.ashbyhq.com/ramp%20jobs", "ashby", "jobs.ashbyhq.com", "ramp jobs"],
     [
       " https://JOBS.ASHBYHQ.COM/%72amp/?utm_source=test#jobs ",
       "ashby",
@@ -30,7 +43,12 @@ describe("identifyBoardUrl", () => {
   ])("identifies %s", (input, provider, sourceHost, boardKey) => {
     expect(identifyBoardUrl(input)).toEqual({
       success: true,
-      source: { provider, sourceHost, boardKey, canonicalUrl: `https://${sourceHost}/${boardKey}` },
+      source: {
+        provider,
+        sourceHost,
+        boardKey,
+        canonicalUrl: `https://${sourceHost}/${encodeURIComponent(boardKey)}`,
+      },
     });
   });
 
@@ -76,7 +94,11 @@ describe("identifyBoardUrl", () => {
     "https://jobs.ashbyhq.com/ramp%252fposting-id",
     "https://jobs.ashbyhq.com/ramp%3fquery",
     "https://jobs.ashbyhq.com/ramp%23fragment",
-    "https://jobs.ashbyhq.com/ramp%20jobs",
+    "https://jobs.ashbyhq.com/%20",
+    "https://jobs.ashbyhq.com/%20ramp",
+    "https://jobs.ashbyhq.com/ramp%20",
+    "https://jobs.ashbyhq.com/ramp%09jobs",
+    "https://jobs.ashbyhq.com/ramp%C2%A0jobs",
     "https://jobs.ashbyhq.com/%00ramp",
     "https://jobs.ashbyhq.com/%C3%A9",
     "https://jobs.ashbyhq.com/café",
@@ -114,5 +136,37 @@ describe("identifyBoardUrl", () => {
     const atLimit = root + "a".repeat(2048 - root.length);
     expect(identifyBoardUrl(atLimit).success).toBe(true);
     expect(identifyBoardUrl(atLimit + "a").success).toBe(false);
+    expect(identifyBoardUrl(root + "a ".repeat(600) + "a").success).toBe(false);
+  });
+});
+
+describe("cleanBoardUrl", () => {
+  it.each([
+    [
+      " https://JOBS.ASHBYHQ.COM:443/Hyperliquid%20Labs/?utm_source=test&cookie=consent#jobs ",
+      "https://jobs.ashbyhq.com/Hyperliquid%20Labs",
+    ],
+    [
+      `https://jobs.ashbyhq.com/ramp/?tracking=${"a".repeat(2500)}#jobs`,
+      "https://jobs.ashbyhq.com/ramp",
+    ],
+    ["https://jobs.lever.co/moonpay?team=eng#jobs", "https://jobs.lever.co/moonpay"],
+    [
+      "https://JOBS.EU.LEVER.CO/ExampleCompany/?ref=test#openings",
+      "https://jobs.eu.lever.co/ExampleCompany",
+    ],
+  ])("removes copied tracking data and stays idempotent (%#)", (input, expected) => {
+    expect(cleanBoardUrl(input)).toBe(expected);
+    expect(cleanBoardUrl(expected)).toBe(expected);
+  });
+
+  it.each([
+    "https://jobs.ashbyhq.com/ramp/posting-id?ref=test#apply",
+    "https://jobs.ashbyhq.com/ramp%2fposting-id?ref=test",
+    "https://user:password@jobs.ashbyhq.com/ramp?ref=test",
+    "https://jobs.ashbyhq.com.evil.example/ramp?ref=test",
+    "not a board URL",
+  ])("keeps unsupported input available for correction: %s", (input) => {
+    expect(cleanBoardUrl(input)).toBe(input);
   });
 });

@@ -17,6 +17,11 @@ import {
 } from "./schemas";
 
 const RefreshContext = createContext<RefreshSummary[]>([]);
+const RefreshNoticeContext = createContext<ReactNode>(null);
+
+export function RefreshNotice() {
+  return useContext(RefreshNoticeContext);
+}
 
 export function useBoardRefreshStatus(boardId: string) {
   return useContext(RefreshContext).find((task) => task.boardId === boardId);
@@ -90,23 +95,24 @@ export function RefreshProvider({ children }: { children: ReactNode }) {
     }
   }, [client, tasks.data]);
 
+  const notice =
+    error || tasks.isError ? (
+      <Alert variant="destructive" className="mb-5">
+        <AlertDescription>
+          {error ? indexErrorMessage(error) : "Refresh status is unavailable."}
+        </AlertDescription>
+        <Button
+          variant="outline"
+          disabled={isPending || tasks.isFetching}
+          onClick={() => (error ? requestVisit("app-visit") : void tasks.refetch())}
+        >
+          Try again
+        </Button>
+      </Alert>
+    ) : null;
   return (
     <RefreshContext value={tasks.data?.refreshes ?? []}>
-      {error || tasks.isError ? (
-        <Alert variant="destructive" className="mb-5">
-          <AlertDescription>
-            {error ? indexErrorMessage(error) : "Refresh status is unavailable."}
-          </AlertDescription>
-          <Button
-            variant="outline"
-            disabled={isPending || tasks.isFetching}
-            onClick={() => (error ? requestVisit("app-visit") : void tasks.refetch())}
-          >
-            Try again
-          </Button>
-        </Alert>
-      ) : null}
-      {children}
+      <RefreshNoticeContext value={notice}>{children}</RefreshNoticeContext>
     </RefreshContext>
   );
 }

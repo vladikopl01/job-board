@@ -139,6 +139,7 @@ export function replacePosting({
           ...current,
           id: newId,
           firstSeenAt: now,
+          readAt: null,
           unavailableAt: null,
           unavailableReason: null,
         })

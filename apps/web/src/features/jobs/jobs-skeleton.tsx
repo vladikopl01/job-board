@@ -1,10 +1,19 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-export function JobsSkeleton({ history }: { history: boolean }) {
+import type { JobListInput } from "./schemas";
+
+export function JobsSkeleton({ view, readStatus }: Pick<JobListInput, "view" | "readStatus">) {
+  const history = view === "history";
   return (
     <div>
       <output aria-label="Loading jobs" className="sr-only">
-        {history ? "Loading job history…" : "Loading indexed jobs…"}
+        {history
+          ? "Loading job history…"
+          : view === "unread" || readStatus === "unread"
+            ? "Loading unread jobs…"
+            : readStatus === "read"
+              ? "Loading read jobs…"
+              : "Loading indexed jobs…"}
       </output>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-3">
         {["first", "second", "third"].map((card) => (
@@ -30,7 +39,7 @@ export function JobDetailsSkeleton() {
         Loading posting…
       </output>
       <div aria-hidden="true" className="flex min-w-0 flex-col gap-6">
-        <div className="flex flex-col gap-5">
+        <div data-reader-stage="heading" className="flex flex-col gap-5">
           <Skeleton className="h-10 w-xl max-w-full" />
           <div className="flex flex-wrap items-center gap-3">
             <Skeleton className="h-7 w-40" />
@@ -42,7 +51,10 @@ export function JobDetailsSkeleton() {
             <Skeleton className="h-8 w-24" />
           </div>
         </div>
-        <div className="grid gap-x-8 gap-y-5 border-y py-6 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          data-reader-stage="facts"
+          className="grid gap-x-8 gap-y-5 border-y py-6 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {["location", "workplace", "employment", "department", "team", "compensation"].map(
             (fact) => (
               <div key={fact} className="flex flex-col gap-2">
@@ -52,7 +64,7 @@ export function JobDetailsSkeleton() {
             ),
           )}
         </div>
-        <div className="flex max-w-prose flex-col gap-4">
+        <div data-reader-stage="description" className="flex max-w-prose flex-col gap-4">
           <Skeleton className="h-7 w-48" />
           <Skeleton className="h-4 w-full" />
           <Skeleton className="h-4 w-full" />
@@ -68,8 +80,7 @@ export function JobDetailsSkeleton() {
 
 export function JobDetailsPageSkeleton() {
   return (
-    <div className="flex min-w-0 flex-col gap-6">
-      <Skeleton aria-hidden="true" className="h-5 w-52 max-w-full" />
+    <div className="mx-auto w-full min-w-0 max-w-[72ch] py-2 sm:py-4">
       <JobDetailsSkeleton />
     </div>
   );

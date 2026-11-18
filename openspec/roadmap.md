@@ -1,6 +1,6 @@
 # Product roadmap
 
-Status: agreed direction, updated 2026-10-27. Workspace foundations, company board management, and indexed openings with minimal local browsing are implemented; unread/discovery and later themes remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
+Status: agreed direction, updated 2026-11-18. Workspace foundations, company board management, indexed openings, the unread inbox, inset workspace navigation, contextual reading, and local text/board/workplace/geography/department discovery are implemented; AI taxonomy and later themes remain planned. This roadmap uses named delivery themes without numbered stages, fixed dates, or release commitments. Extend it as the project develops.
 
 The [stack](tech-stack.md) and [architecture](architecture.md) define the current baseline. Each theme should be delivered through focused OpenSpec feature changes with behavior specs, design where needed, and implementation tasks. Completing this documentation does not complete any product theme below.
 
@@ -39,7 +39,7 @@ Depends on workspace persistence and the application shell. Ready when the track
 
 ## Indexed openings
 
-Implementation is present in the [job-indexing change](changes/archive/2026-11-08-add-job-indexing/tasks.md): complete validated Ashby and Lever global/EU adapters, atomic local reconciliation, persisted bounded refresh execution, app-visit/manual triggers, archive fencing, retained history, and confirmed Treat as new. Jobs provides Open/History lists with nuqs pagination and inert local details. Fixture and temporary-SQLite tests cover failure/identity/recovery boundaries; the expanded three-system CI matrix still needs to run. Unread state and richer discovery below are separate work.
+Implementation is present in the [job-indexing change](changes/archive/2026-11-08-add-job-indexing/tasks.md): complete validated Ashby and Lever global/EU adapters, atomic local reconciliation, persisted bounded refresh execution, app-visit/manual triggers, archive fencing, retained history, and confirmed Treat as new. Jobs provides local lists and descriptions with nuqs pagination. Fixture and temporary-SQLite tests cover failure/identity/recovery boundaries; the expanded three-system CI matrix still needs to run. The unread theme below adds read state and actual-visit marking; richer discovery remains separate work.
 
 Turn supported boards into a durable local index.
 
@@ -56,6 +56,8 @@ Depends on board tracking. Ready when incomplete or failed feeds cannot falsely 
 
 ## Unread inbox
 
+Implementation is present in the [unread-inbox change](changes/archive/2026-11-18-add-unread-inbox/tasks.md): actual detail visits mark read once, and cards/details offer explicit overrides. Open's URL-backed All/Unread/Read filter makes read postings easy to revisit. Select jobs enters page-scoped selection mode with card buttons, selected borders/checkmarks, and a stable bottom action dock for atomic bulk actions on up to 50 displayed jobs; Done or Escape restores normal navigation and focus to the mode button or empty-state heading without card checkboxes. Shared Inbox navigation/header counts exclude unavailable postings and archived boards and stay independent of the read filter. Existing records start unread after the explicit `pnpm db:migrate` upgrade. Read state survives ordinary edits, refreshes, restarts, and archive/restore; new posting identities start unread. Reading alone never moves a posting to History. Main specs are synced and this change is archived.
+
 Make new openings easy to revisit over time.
 
 - Persist unread state for initial imports and newly discovered postings.
@@ -67,7 +69,13 @@ Make new openings easy to revisit over time.
 
 Depends on indexed openings. Ready when ten imported postings with four read, followed by fifteen new postings, leave twenty-one unread. Prefetching and content edits must not silently change that state.
 
+## Workspace navigation
+
+Implementation is present in [restructure-workspace-navigation](changes/archive/2026-11-18-restructure-workspace-navigation/tasks.md): the official shadcn inset sidebar connects Dashboard, Inbox, Jobs, and Boards. Dashboard is the root landing page, Inbox is the unread review queue, and Jobs defaults to Open with History, board pages expose scoped postings and existing management controls, and Dashboard offers real local counts and source-failure links. One URL-addressed responsive reader retains review context and restores useful focus/position on close. Collections share debounced search, property menus, List/Cards/Table layouts, and 10/25/50-item pagination. Single shell breadcrumbs, readable centered details, one workspace scroller, and a stable footer selection dock refine navigation. Main specs are synced and both changes are archived, with these newer navigation decisions taking precedence. The [sidebar persistence follow-up](changes/archive/2026-11-18-persist-sidebar-collapse/tasks.md) restores the saved desktop collapse state on the initial render after reload.
+
 ## Local discovery
+
+Title/plain-description search and board/workplace filters are implemented alongside debounced input, property menus, shared layouts, and configurable pagination. The [geography and department change](changes/archive/2026-11-18-add-geography-department-filters/tasks.md) adds source-backed Country, Region and Department conditions before totals/pagination, for current and retained historical records, with no reindexing or migration. EU/Europe groups retain exact-country limits and original eligibility restrictions; missing data remains Unknown and unfamiliar departments remain Other. AI role/taxonomy classification and tag storage remain separate future work.
 
 Provide useful browsing over all indexed postings without requiring an agent.
 
@@ -76,7 +84,7 @@ Provide useful browsing over all indexed postings without requiring an agent.
 - Support multiple locations, show original text, and preserve eligibility restrictions.
 - Group EU-labelled jobs under Europe for discovery while keeping exact-country matching precise.
 - Represent query, filters, sort, and pagination with nuqs.
-- Establish role and department tag storage and Unknown values for the later classifier.
+- Filter broad departments from explicit provider labels, with team fallback, Other and Unknown; defer role/taxonomy tag storage to the classifier theme.
 - Retain salary metadata without introducing compensation filters.
 
 Depends on indexed openings. Ready when filters have consistent options across providers and an exact Spain selection does not broaden to unrelated EU countries or unspecified regional roles.

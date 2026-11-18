@@ -5,15 +5,45 @@ import { act, cleanup, render, screen, waitFor, within } from "@testing-library/
 import userEvent from "@testing-library/user-event";
 import { NuqsTestingAdapter, type UrlUpdateEvent } from "nuqs/adapters/testing";
 import { afterEach, expect, it, vi } from "vitest";
+import { chooseFilter, setupCollectionControls } from "../../../test/collection-controls";
 
-import { QueryProvider } from "@/components/query-provider";
+import type { ReactNode } from "react";
+import { QueryProvider as BaseQueryProvider } from "@/components/query-provider";
+import { JobVisitProvider } from "./job-visit-provider";
 
-import { detailFixture, listFixture, postingId } from "../../../test/job-fixtures";
+import { boardFixture, detailFixture, listFixture, postingId } from "../../../test/job-fixtures";
 import { JobDetailsClient } from "./job-details-client";
 import { JobsClient } from "./jobs-client";
+import { UnreadCount } from "./unread-count";
+import { jobListInputSchema } from "./schemas";
 
 const push = vi.hoisted(() => vi.fn<(url: string) => void>());
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }), usePathname: () => "/jobs" }));
+
+function QueryProvider({ children }: { children: ReactNode }) {
+  return (
+    <BaseQueryProvider>
+      <JobVisitProvider>{children}</JobVisitProvider>
+    </BaseQueryProvider>
+  );
+}
+
+function stubFetch(fetcher: typeof fetch, unreadCount = () => 1) {
+  setupCollectionControls();
+  vi.stubGlobal("fetch", (input: Parameters<typeof fetch>[0], init?: RequestInit) =>
+    input === "/api/jobs/unread-count"
+      ? Promise.resolve(Response.json({ unreadCount: unreadCount() }))
+      : input === "/api/boards"
+        ? Promise.resolve(Response.json({ boards: [boardFixture] }))
+        : fetcher(input, init),
+  );
+}
+
+function requestsHistory(input: Parameters<typeof fetch>[0]) {
+  const url = new URL(String(input), "http://localhost");
+  const { filters } = jobListInputSchema.parse(Object.fromEntries(url.searchParams));
+  return filters?.some((filter) => filter.id === "availability" && filter.value === "history");
+}
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -35,15 +65,14 @@ it.each([
   const pending = new Promise<void>((resolve) => {
     release = resolve;
   });
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async () => {
       await pending;
       return Response.json(response);
     }),
   );
   const { container } = render(
-    <NuqsTestingAdapter>
+    <NuqsTestingAdapter searchParams="?layout=list">
       <QueryProvider>{element}</QueryProvider>
     </NuqsTestingAdapter>,
   );
@@ -58,7 +87,7 @@ it("restores History/page from the URL and updates navigation without provider m
   const updates = vi.fn<(event: UrlUpdateEvent) => void>();
   const fetcher = vi.fn<typeof fetch>(async (input) => {
     const url = new URL(String(input), "http://localhost");
-    const history = url.searchParams.get("view") === "history";
+    const history = requestsHistory(input);
     return Response.json(
       listFixture(
         [
@@ -74,9 +103,13 @@ it("restores History/page from the URL and updates navigation without provider m
       ),
     );
   });
-  vi.stubGlobal("fetch", fetcher);
+  stubFetch(fetcher);
   render(
-    <NuqsTestingAdapter hasMemory searchParams="?view=history&page=2" onUrlUpdate={updates}>
+    <NuqsTestingAdapter
+      hasMemory
+      searchParams="?layout=list&view=history&page=2"
+      onUrlUpdate={updates}
+    >
       <QueryProvider>
         <JobsClient />
       </QueryProvider>
@@ -92,27 +125,26 @@ it("restores History/page from the URL and updates navigation without provider m
     "href",
     `/boards/${detailFixture.boardId}`,
   );
-  expect(screen.getByRole("tab", { name: "History" })).toHaveAttribute("aria-selected", "true");
-  expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /^Filter(?: \d+)?$/u })).toBeInTheDocument();
+  expect(screen.getByLabelText("Page 2 of 2")).toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Previous" }));
-  await waitFor(() => expect(screen.getByText("Page 1 of 2")).toBeInTheDocument());
-  await user.click(screen.getByRole("tab", { name: "Open" }));
+  await waitFor(() => expect(screen.getByLabelText("Page 1 of 2")).toBeInTheDocument());
+  await chooseFilter(user, "Availability", "Open");
   await screen.findByRole("link", { name: "Current role" });
   expect(updates).toHaveBeenCalled();
   expect(fetcher.mock.calls.every(([, init]) => init?.method !== "POST")).toBe(true);
 });
 
-it("shows loading inside History until its local results arrive", async () => {
+it("keeps current results mounted while the Availability filter resolves History", async () => {
   let releaseHistory: () => void = () => {
     throw new Error("History response is not initialized.");
   };
   const pending = new Promise<void>((resolve) => {
     releaseHistory = resolve;
   });
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async (input) => {
-      if (String(input).includes("view=history")) {
+      if (requestsHistory(input)) {
         await pending;
         return Response.json(listFixture([], 1, 0));
       }
@@ -120,19 +152,19 @@ it("shows loading inside History until its local results arrive", async () => {
     }),
   );
   render(
-    <NuqsTestingAdapter hasMemory>
+    <NuqsTestingAdapter hasMemory searchParams="?layout=list">
       <QueryProvider>
         <JobsClient />
       </QueryProvider>
     </NuqsTestingAdapter>,
   );
   await screen.findByRole("link", { name: "Software Engineer" });
-  await userEvent.setup().click(screen.getByRole("tab", { name: "History" }));
-  const panel = await screen.findByRole("tabpanel", { name: "History" });
-  expect(await within(panel).findByText("Loading job history…")).toBeInTheDocument();
-  expect(panel.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
+  await chooseFilter(userEvent.setup(), "Availability", "History");
+  const panel = await screen.findByRole("region", { name: "Historical jobs" });
+  expect(screen.queryByRole("status", { name: "Loading jobs" })).not.toBeInTheDocument();
+  expect(panel.querySelector('[data-slot="skeleton"]')).not.toBeInTheDocument();
   expect(panel).toHaveAttribute("aria-busy", "true");
-  expect(screen.queryByRole("link", { name: "Software Engineer" })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Software Engineer" })).toBeInTheDocument();
   expect(screen.queryByText("No posting history yet")).not.toBeInTheDocument();
   await act(async () => releaseHistory());
   await screen.findByText("No posting history yet");
@@ -156,9 +188,9 @@ it("keeps pagination focus and current results until the next local page arrives
       listFixture([{ ...detailFixture, title: `Role on page ${page}` }], page, 51),
     );
   });
-  vi.stubGlobal("fetch", fetcher);
+  stubFetch(fetcher);
   render(
-    <NuqsTestingAdapter hasMemory>
+    <NuqsTestingAdapter hasMemory searchParams="?layout=list">
       <QueryProvider>
         <JobsClient />
       </QueryProvider>
@@ -174,36 +206,41 @@ it("keeps pagination focus and current results until the next local page arrives
   expect(screen.getByRole("link", { name: "Role on page 1" })).toBeInTheDocument();
   expect(screen.queryByRole("status", { name: "Loading jobs" })).not.toBeInTheDocument();
   await user.keyboard("{Enter}");
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(
+    fetcher.mock.calls.filter(([input]) => String(input).startsWith("/api/jobs?")),
+  ).toHaveLength(2);
   await act(async () => release());
   await screen.findByRole("link", { name: "Role on page 2" });
   expect(screen.getByRole("button", { name: "Next" })).toBe(next);
-  expect(next).toHaveFocus();
+  expect(screen.getByRole("region", { name: "Open jobs" })).toHaveFocus();
+  expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+    block: "start",
+    behavior: "instant",
+  });
   expect(next).toHaveAttribute("aria-disabled", "true");
-  expect(screen.getByRole("status")).toHaveTextContent("Page 2 of 2");
+  expect(screen.getByLabelText("Page 2 of 2")).toBeInTheDocument();
   await user.keyboard("{Enter}");
-  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(
+    fetcher.mock.calls.filter(([input]) => String(input).startsWith("/api/jobs?")),
+  ).toHaveLength(2);
 });
 
-it("limits card locations to five with an accurate remaining count", async () => {
+it("keeps list locations compact with an accurate remaining count", async () => {
   const locations = ["London", "Berlin", "Paris", "Madrid", "Rome", "Vienna", "Prague"].map(
     (text) => ({ text, country: null, address: null }),
   );
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async () => Response.json(listFixture([{ ...detailFixture, locations }]))),
   );
   render(
-    <NuqsTestingAdapter>
+    <NuqsTestingAdapter searchParams="?layout=list">
       <QueryProvider>
         <JobsClient />
       </QueryProvider>
     </NuqsTestingAdapter>,
   );
   await screen.findByRole("link", { name: detailFixture.title });
-  expect(
-    screen.getByText(/London, Berlin, Paris, Madrid, Rome, 2 more locations/u),
-  ).toBeInTheDocument();
+  expect(screen.getByText(/London, Berlin, 5 more locations/u)).toBeInTheDocument();
   expect(screen.queryByText(/Vienna|Prague/u)).not.toBeInTheDocument();
 });
 
@@ -227,9 +264,10 @@ it("renders descriptions as inert text and requires confirmation before correcti
       },
     });
   });
-  vi.stubGlobal("fetch", fetcher);
+  stubFetch(fetcher, () => (shouldFail ? 0 : 1));
   const { container } = render(
     <QueryProvider>
+      <UnreadCount />
       <JobDetailsClient id={postingId} />
     </QueryProvider>,
   );
@@ -252,15 +290,16 @@ it("renders descriptions as inert text and requires confirmation before correcti
   await user.click(trigger);
   await user.click(screen.getByRole("button", { name: "Create new posting" }));
   await screen.findByText("Could not save; retry.");
+  expect(screen.getByLabelText("0 unread jobs")).toBeInTheDocument();
   expect(screen.getByRole("dialog")).toBeInTheDocument();
   shouldFail = false;
   await user.click(screen.getByRole("button", { name: "Create new posting" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith(`/jobs/${newId}`));
+  expect(screen.getByLabelText("1 unread job")).toBeInTheDocument();
 });
 
 it("retains historical details without exposing replacement controls", async () => {
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async () =>
       Response.json({
         posting: {
@@ -280,9 +319,8 @@ it("retains historical details without exposing replacement controls", async () 
   expect(screen.queryByRole("button", { name: "Treat as new" })).not.toBeInTheDocument();
 });
 
-it("preserves description headings and links and presents readable job facts with breadcrumbs", async () => {
-  vi.stubGlobal(
-    "fetch",
+it("preserves description headings and links and presents readable job facts in the reading column", async () => {
+  stubFetch(
     vi.fn<typeof fetch>(async () =>
       Response.json({
         posting: {
@@ -319,17 +357,10 @@ it("preserves description headings and links and presents readable job facts wit
   expect(screen.getByText("Full Time")).toBeInTheDocument();
   expect(screen.getByText("On-site")).toBeInTheDocument();
   expect(screen.getByText("Europe · EUR 80,000–100,000")).toBeInTheDocument();
-  const breadcrumbs = screen.getByRole("navigation", { name: "breadcrumb" });
-  expect(within(breadcrumbs).getByRole("link", { name: "Jobs" })).toHaveAttribute("href", "/jobs");
-  expect(within(breadcrumbs).getByText(detailFixture.title)).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
 });
 
 it("shows a local read failure rather than an empty successful list", async () => {
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async () =>
       Response.json(
         { error: { code: "STORAGE_ERROR", message: "Local storage is unavailable." } },
@@ -338,7 +369,7 @@ it("shows a local read failure rather than an empty successful list", async () =
     ),
   );
   render(
-    <NuqsTestingAdapter>
+    <NuqsTestingAdapter searchParams="?layout=list">
       <QueryProvider>
         <JobsClient />
       </QueryProvider>
@@ -350,8 +381,7 @@ it("shows a local read failure rather than an empty successful list", async () =
 });
 
 it("offers local navigation in the custom not-found state for an unknown posting", async () => {
-  vi.stubGlobal(
-    "fetch",
+  stubFetch(
     vi.fn<typeof fetch>(async () =>
       Response.json(
         {

@@ -11,10 +11,10 @@ export function workplaceLabel(value: JobListItem["workplaceType"]) {
   return workplaceLabels[value];
 }
 
-export function locationSummary(locations: JobListItem["locations"]) {
-  const remaining = Math.max(0, locations.length - 5);
+export function locationSummary(locations: JobListItem["locations"], limit = 2) {
+  const remaining = Math.max(0, locations.length - limit);
   return [
-    ...locations.slice(0, 5).map((location) => location.text),
+    ...locations.slice(0, limit).map((location) => location.text),
     ...(remaining > 0 ? [`${remaining} more location${remaining === 1 ? "" : "s"}`] : []),
   ].join(", ");
 }

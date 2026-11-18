@@ -51,6 +51,7 @@ export const postings = sqliteTable(
     firstSeenAt: text("first_seen_at").notNull(),
     lastSeenAt: text("last_seen_at").notNull(),
     contentUpdatedAt: text("content_updated_at").notNull(),
+    readAt: text("read_at"),
     unavailableAt: text("unavailable_at"),
     unavailableReason: text("unavailable_reason", { enum: ["missing", "superseded"] }),
   },
