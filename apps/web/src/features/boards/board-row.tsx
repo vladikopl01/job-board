@@ -104,7 +104,10 @@ export function BoardRow({
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <div
-            className={cn("min-w-0", presentation !== "detail" && "flex flex-1 items-center gap-1")}
+            className={cn(
+              "min-w-0",
+              (editing || presentation !== "detail") && "flex flex-1 items-center gap-1",
+            )}
           >
             <Heading
               id={`board-name-${board.id}`}
