@@ -2,6 +2,9 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
 const nextConfig = {
+  experimental: {
+    agentUpgrade: "security",
+  },
   transpilePackages: ["@job-board/db", "@job-board/job-boards"],
   serverExternalPackages: ["better-sqlite3"],
   turbopack: {
